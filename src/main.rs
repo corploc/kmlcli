@@ -16,7 +16,7 @@ fn main() -> Result<()> {
         Some(cli::Command::List { .. }) => kmlcli::commands::list::run(&doc)?,
         Some(cli::Command::Tree { .. }) => kmlcli::commands::tree::run(&doc),
         _ => {
-            todo!("TUI")
+            kmlcli::tui::app::App::new(doc).run()?;
         }
     }
     Ok(())
