@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Multi Test</name>
+    <Style id="redLine">
+      <LineStyle>
+        <color>ff0000ff</color>
+        <width>2</width>
+      </LineStyle>
+    </Style>
+    <Folder>
+      <name>Routes</name>
+      <Placemark>
+        <name>Route 1</name>
+        <styleUrl>#redLine</styleUrl>
+        <LineString>
+          <coordinates>
+            -1.6778,48.1173,0
+            -1.6800,48.1200,0
+          </coordinates>
+        </LineString>
+      </Placemark>
+    </Folder>
+    <Placemark>
+      <name>Zone A</name>
+      <Polygon>
+        <outerBoundaryIs>
+          <LinearRing>
+            <coordinates>
+              -1.68,48.11,0
+              -1.67,48.11,0
+              -1.67,48.12,0
+              -1.68,48.12,0
+              -1.68,48.11,0
+            </coordinates>
+          </LinearRing>
+        </outerBoundaryIs>
+      </Polygon>
+    </Placemark>
+    <Placemark>
+      <name>Multi</name>
+      <MultiGeometry>
+        <Point>
+          <coordinates>-1.68,48.12,0</coordinates>
+        </Point>
+        <LineString>
+          <coordinates>
+            -1.68,48.12,0
+            -1.69,48.13,0
+          </coordinates>
+        </LineString>
+      </MultiGeometry>
+    </Placemark>
+  </Document>
+</kml>
