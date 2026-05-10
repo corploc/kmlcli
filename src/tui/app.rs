@@ -18,6 +18,7 @@ use crate::{
     model::{Feature, Geometry, KmlDocument},
     projection::Viewport,
     tui::{
+        details::DetailsView,
         input::{handle_key, Action, Focus},
         map::MapView,
         tree::{kind_to_icon, TreeView, TreeViewItem},
@@ -300,8 +301,12 @@ impl App {
         f.render_widget(map_view.widget(), map_area);
 
         // Details panel
-        let details_block = Block::default().borders(Borders::ALL).title("Details");
-        f.render_widget(details_block, details_area);
+        let selected_feature = self
+            .tree_items
+            .get(self.selected)
+            .and_then(|item| self.get_feature(&item.feature_path));
+        let details_view = DetailsView::new(selected_feature);
+        f.render_widget(details_view.widget(), details_area);
 
         // Status bar
         let status = Paragraph::new(Span::raw(
