@@ -15,10 +15,11 @@ use ratatui::{
 };
 
 use crate::{
-    model::{Feature, KmlDocument},
+    model::{Feature, Geometry, KmlDocument},
     projection::Viewport,
     tui::{
         input::{handle_key, Action, Focus},
+        map::MapView,
         tree::{kind_to_icon, TreeView, TreeViewItem},
     },
 };
@@ -149,9 +150,15 @@ impl App {
                 }
             }
             Action::ToggleExpand => {
-                if let Some(item) = self.tree_items.get_mut(self.selected) {
+                if let Some(item) = self.tree_items.get(self.selected).cloned() {
                     if item.has_children {
-                        item.expanded = !item.expanded;
+                        self.tree_items[self.selected].expanded =
+                            !self.tree_items[self.selected].expanded;
+                    } else {
+                        // Leaf: center viewport on first coord
+                        if let Some(coord) = self.first_coord_of_selected() {
+                            self.viewport.center_on(&coord);
+                        }
                     }
                 }
             }
@@ -162,6 +169,35 @@ impl App {
             Action::PanUp => self.viewport.pan_up(),
             Action::PanDown => self.viewport.pan_down(),
             Action::Search | Action::None => {}
+        }
+    }
+
+    fn get_feature(&self, path: &[usize]) -> Option<&Feature> {
+        let mut features = &self.doc.features;
+        let mut feature = None;
+        for &idx in path {
+            feature = features.get(idx);
+            if let Some(Feature::Folder {
+                features: children, ..
+            }) = feature
+            {
+                features = children;
+            } else {
+                break;
+            }
+        }
+        feature
+    }
+
+    fn first_coord_of_selected(&self) -> Option<crate::model::Coord> {
+        let path = self.tree_items.get(self.selected)?.feature_path.clone();
+        let feature = self.get_feature(&path)?;
+        match feature {
+            Feature::Placemark {
+                geometry: Some(geom),
+                ..
+            } => first_coord(geom),
+            _ => None,
         }
     }
 
@@ -251,16 +287,17 @@ impl App {
         );
 
         // Map panel
-        let map_border_style = if self.focus == Focus::Map {
-            Style::default().fg(Color::Yellow)
-        } else {
-            Style::default()
-        };
-        let map_block = Block::default()
-            .borders(Borders::ALL)
-            .title("Map")
-            .border_style(map_border_style);
-        f.render_widget(map_block, map_area);
+        let selected_path = self
+            .tree_items
+            .get(self.selected)
+            .map(|i| i.feature_path.as_slice());
+        let map_view = MapView::new(
+            &self.doc,
+            &self.viewport,
+            selected_path,
+            self.focus == Focus::Map,
+        );
+        f.render_widget(map_view.widget(), map_area);
 
         // Details panel
         let details_block = Block::default().borders(Borders::ALL).title("Details");
@@ -285,6 +322,15 @@ fn feature_kind(feature: &Feature) -> &'static str {
             Some(crate::model::Geometry::MultiGeometry(_)) => "multi",
             None => "placemark",
         },
+    }
+}
+
+fn first_coord(geom: &Geometry) -> Option<crate::model::Coord> {
+    match geom {
+        Geometry::Point(c) => Some(c.clone()),
+        Geometry::LineString(cs) => cs.first().cloned(),
+        Geometry::Polygon(rings) => rings.first()?.first().cloned(),
+        Geometry::MultiGeometry(gs) => gs.first().and_then(first_coord),
     }
 }
 
