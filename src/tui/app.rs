@@ -17,7 +17,10 @@ use ratatui::{
 use crate::{
     model::{Feature, KmlDocument},
     projection::Viewport,
-    tui::input::{handle_key, Action, Focus},
+    tui::{
+        input::{handle_key, Action, Focus},
+        tree::{kind_to_icon, TreeView, TreeViewItem},
+    },
 };
 
 #[derive(Debug, Clone)]
@@ -36,6 +39,7 @@ pub struct App {
     focus: Focus,
     selected: usize,
     tree_items: Vec<TreeItem>,
+    tree_scroll: usize,
     should_quit: bool,
 }
 
@@ -61,6 +65,7 @@ impl App {
             focus: Focus::Tree,
             selected: 0,
             tree_items,
+            tree_scroll: 0,
             should_quit: false,
         }
     }
@@ -117,9 +122,15 @@ impl App {
                 if let Some(pos) = visible.iter().position(|&i| i == self.selected) {
                     if pos + 1 < visible.len() {
                         self.selected = visible[pos + 1];
+                        // scroll down if needed (use 20 as default visible height)
+                        let new_pos = pos + 1;
+                        if new_pos >= self.tree_scroll + 20 {
+                            self.tree_scroll = new_pos.saturating_sub(19);
+                        }
                     }
                 } else if !visible.is_empty() {
                     self.selected = visible[0];
+                    self.tree_scroll = 0;
                 }
             }
             Action::MoveUp => {
@@ -127,9 +138,14 @@ impl App {
                 if let Some(pos) = visible.iter().position(|&i| i == self.selected) {
                     if pos > 0 {
                         self.selected = visible[pos - 1];
+                        let new_pos = pos - 1;
+                        if new_pos < self.tree_scroll {
+                            self.tree_scroll = new_pos;
+                        }
                     }
                 } else if !visible.is_empty() {
                     self.selected = visible[0];
+                    self.tree_scroll = 0;
                 }
             }
             Action::ToggleExpand => {
@@ -205,7 +221,34 @@ impl App {
             .borders(Borders::ALL)
             .title("Features")
             .border_style(tree_border_style);
+        let tree_inner = tree_block.inner(tree_area);
         f.render_widget(tree_block, tree_area);
+
+        let visible_indices = self.visible_indices();
+        let view_items: Vec<TreeViewItem> = visible_indices
+            .iter()
+            .map(|&idx| {
+                let item = &self.tree_items[idx];
+                TreeViewItem {
+                    depth: item.depth,
+                    name: item.name.clone(),
+                    icon: kind_to_icon(&item.kind),
+                    expanded: item.expanded,
+                    has_children: item.has_children,
+                }
+            })
+            .collect();
+
+        // selected is an index into tree_items; find its position in visible list
+        let selected_pos = visible_indices
+            .iter()
+            .position(|&i| i == self.selected)
+            .unwrap_or(0);
+
+        f.render_widget(
+            TreeView::new(&view_items, selected_pos, self.tree_scroll),
+            tree_inner,
+        );
 
         // Map panel
         let map_border_style = if self.focus == Focus::Map {
