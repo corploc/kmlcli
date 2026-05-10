@@ -1,0 +1,24 @@
+[package]
+name = "kmlcli"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "kmlcli"
+path = "src/lib.rs"
+
+[[bin]]
+name = "kmlcli"
+path = "src/main.rs"
+
+[dependencies]
+kml = { version = "0.13", features = ["zip"] }
+ratatui = "0.29"
+crossterm = "0.28"
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+color-eyre = "0.6"
+
+[dev-dependencies]
+pretty_assertions = "1"
