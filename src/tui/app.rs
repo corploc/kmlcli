@@ -7,11 +7,11 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{
-    layout::{Constraint, Direction, Layout, Margin},
-    style::{Color, Modifier, Style},
+    layout::{Constraint, Direction, Layout},
+    style::{Color, Style},
     text::Span,
     widgets::{Block, Borders, Paragraph},
-    DefaultTerminal, Frame,
+    Frame,
 };
 
 use crate::{
@@ -225,6 +225,16 @@ impl App {
     fn draw(&self, f: &mut Frame) {
         let area = f.area();
 
+        // Terminal too small
+        if area.width < 40 || area.height < 10 {
+            let msg = Paragraph::new("Terminal too small (min 40x10)")
+                .style(Style::default().fg(Color::Red));
+            f.render_widget(msg, area);
+            return;
+        }
+
+        let show_tree = area.width >= 60;
+
         // Split: body + details + status
         let outer = Layout::default()
             .direction(Direction::Vertical)
@@ -239,80 +249,93 @@ impl App {
         let details_area = outer[1];
         let status_area = outer[2];
 
-        // Split body: tree 30% + map 70%
-        let body = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(30), Constraint::Percentage(70)])
-            .split(body_area);
-
-        let tree_area = body[0];
-        let map_area = body[1];
-
-        // Tree panel
-        let tree_border_style = if self.focus == Focus::Tree {
-            Style::default().fg(Color::Yellow)
-        } else {
-            Style::default()
-        };
-        let tree_block = Block::default()
-            .borders(Borders::ALL)
-            .title("Features")
-            .border_style(tree_border_style);
-        let tree_inner = tree_block.inner(tree_area);
-        f.render_widget(tree_block, tree_area);
-
-        let visible_indices = self.visible_indices();
-        let view_items: Vec<TreeViewItem> = visible_indices
-            .iter()
-            .map(|&idx| {
-                let item = &self.tree_items[idx];
-                TreeViewItem {
-                    depth: item.depth,
-                    name: item.name.clone(),
-                    icon: kind_to_icon(&item.kind),
-                    expanded: item.expanded,
-                    has_children: item.has_children,
-                }
-            })
-            .collect();
-
-        // selected is an index into tree_items; find its position in visible list
-        let selected_pos = visible_indices
-            .iter()
-            .position(|&i| i == self.selected)
-            .unwrap_or(0);
-
-        f.render_widget(
-            TreeView::new(&view_items, selected_pos, self.tree_scroll),
-            tree_inner,
-        );
-
-        // Map panel
+        // Selected path + feature (shared by tree, map, details)
         let selected_path = self
             .tree_items
             .get(self.selected)
             .map(|i| i.feature_path.as_slice());
-        let map_view = MapView::new(
-            &self.doc,
-            &self.viewport,
-            selected_path,
-            self.focus == Focus::Map,
-        );
-        f.render_widget(map_view.widget(), map_area);
-
-        // Details panel
         let selected_feature = self
             .tree_items
             .get(self.selected)
             .and_then(|item| self.get_feature(&item.feature_path));
+
+        if show_tree {
+            // Split body: tree 30% + map 70%
+            let body = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([Constraint::Percentage(30), Constraint::Percentage(70)])
+                .split(body_area);
+
+            let tree_area = body[0];
+            let map_area = body[1];
+
+            // Tree panel
+            let tree_border_style = if self.focus == Focus::Tree {
+                Style::default().fg(Color::Yellow)
+            } else {
+                Style::default()
+            };
+            let tree_block = Block::default()
+                .borders(Borders::ALL)
+                .title("Features")
+                .border_style(tree_border_style);
+            let tree_inner = tree_block.inner(tree_area);
+            f.render_widget(tree_block, tree_area);
+
+            let visible_indices = self.visible_indices();
+            let view_items: Vec<TreeViewItem> = visible_indices
+                .iter()
+                .map(|&idx| {
+                    let item = &self.tree_items[idx];
+                    TreeViewItem {
+                        depth: item.depth,
+                        name: item.name.clone(),
+                        icon: kind_to_icon(&item.kind),
+                        expanded: item.expanded,
+                        has_children: item.has_children,
+                    }
+                })
+                .collect();
+
+            let selected_pos = visible_indices
+                .iter()
+                .position(|&i| i == self.selected)
+                .unwrap_or(0);
+
+            f.render_widget(
+                TreeView::new(&view_items, selected_pos, self.tree_scroll),
+                tree_inner,
+            );
+
+            // Map panel
+            let map_view = MapView::new(
+                &self.doc,
+                &self.viewport,
+                selected_path,
+                self.focus == Focus::Map,
+            );
+            f.render_widget(map_view.widget(), map_area);
+        } else {
+            // Degraded: map only
+            let map_view = MapView::new(&self.doc, &self.viewport, selected_path, true);
+            f.render_widget(map_view.widget(), body_area);
+        }
+
+        // Details panel
         let details_view = DetailsView::new(selected_feature);
         f.render_widget(details_view.widget(), details_area);
 
         // Status bar
-        let status = Paragraph::new(Span::raw(
-            " [Tab] Switch focus  [q] Quit  [j/k] Navigate  [Enter] Expand  [+/-] Zoom  [hjkl] Pan",
-        ))
-        .style(Style::default().fg(Color::DarkGray));
+        let focus_label = match self.focus {
+            Focus::Tree => "TREE",
+            Focus::Map => "MAP",
+        };
+        let doc_name = self.doc.name.as_deref().unwrap_or("untitled");
+        let status_text = format!(
+            " {doc_name} | [{focus_label}] | [q]uit [tab]focus [j/k]nav [+/-]zoom [hjkl]pan"
+        );
+        let status =
+            Paragraph::new(Span::raw(status_text)).style(Style::default().fg(Color::DarkGray));
         f.render_widget(status, status_area);
     }
 }
