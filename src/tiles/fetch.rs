@@ -6,15 +6,16 @@ use std::sync::{Arc, Mutex};
 use lru::LruCache;
 use prost::Message;
 
-use super::decode::{decode_tile, DecodedFeature};
+use super::decode::decode_tile;
 use super::math::TileCoord;
 use super::proto::Tile;
+use super::render::RenderedTile;
 
 const TILEJSON_URL: &str = "https://tiles.openfreemap.org/planet";
 const CACHE_SIZE: usize = 64;
 
 pub struct TileCache {
-    cache: Arc<Mutex<LruCache<TileCoord, Vec<DecodedFeature>>>>,
+    cache: Arc<Mutex<LruCache<TileCoord, RenderedTile>>>,
     prefetch_tx: mpsc::Sender<Vec<TileCoord>>,
 }
 
@@ -46,7 +47,7 @@ impl TileCache {
 
                 // Process prefetch requests
                 while let Ok(coords) = prefetch_rx.recv() {
-                    // Drain any queued requests — only process the latest batch
+                    // Drain queued requests — only process the latest batch
                     let coords = {
                         let mut latest = coords;
                         while let Ok(newer) = prefetch_rx.try_recv() {
@@ -73,15 +74,22 @@ impl TileCache {
                                 if let Ok(bytes) = response.bytes() {
                                     if bytes.is_empty() {
                                         let mut cache_lock = cache.lock().unwrap();
-                                        cache_lock.put(coord, Vec::new());
+                                        cache_lock.put(
+                                            coord,
+                                            RenderedTile {
+                                                segments: Vec::new(),
+                                                labels: Vec::new(),
+                                            },
+                                        );
                                         continue;
                                     }
                                     let decompressed =
                                         decompress_gzip(&bytes).unwrap_or_else(|| bytes.to_vec());
                                     if let Ok(tile) = Tile::decode(decompressed.as_slice()) {
                                         let features = decode_tile(&tile, &coord);
+                                        let rendered = super::render::prerender_tile(&features);
                                         let mut cache_lock = cache.lock().unwrap();
-                                        cache_lock.put(coord, features);
+                                        cache_lock.put(coord, rendered);
                                     }
                                 }
                             }
@@ -94,13 +102,13 @@ impl TileCache {
         Self { cache, prefetch_tx }
     }
 
-    /// Access the cache directly for rendering. Caller holds the lock briefly.
+    /// Access pre-rendered tile data. No cloning — caller borrows via closure.
     pub fn with_cached<F, R>(&self, coord: &TileCoord, f: F) -> Option<R>
     where
-        F: FnOnce(&[DecodedFeature]) -> R,
+        F: FnOnce(&RenderedTile) -> R,
     {
         let mut cache = self.cache.lock().unwrap();
-        cache.get(coord).map(|features| f(features))
+        cache.get(coord).map(|tile| f(tile))
     }
 
     pub fn prefetch(&self, coords: Vec<TileCoord>) {

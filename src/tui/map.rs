@@ -11,7 +11,7 @@ use crate::{
     tiles::{
         fetch::TileCache,
         math,
-        render::{dedup_labels, render_tile_features, render_tile_labels},
+        render::{dedup_labels, TileLabel, TileSegment},
     },
 };
 
@@ -51,12 +51,18 @@ impl<'a> MapView<'a> {
             math::visible_tiles(lat_bounds[0], lat_bounds[1], x_bounds[0], x_bounds[1], zoom);
         let visible: Vec<_> = visible.into_iter().take(16).collect();
 
-        let mut tile_segments = Vec::new();
-        let mut tile_labels = Vec::new();
+        let mut tile_segments: Vec<TileSegment> = Vec::new();
+        let mut tile_labels: Vec<TileLabel> = Vec::new();
         for tc in &visible {
-            self.tile_cache.with_cached(tc, |features| {
-                tile_segments.extend(render_tile_features(features, self.viewport));
-                tile_labels.extend(render_tile_labels(features, self.viewport, zoom));
+            self.tile_cache.with_cached(tc, |rendered| {
+                tile_segments.extend_from_slice(&rendered.segments);
+                tile_labels.extend(
+                    rendered
+                        .labels
+                        .iter()
+                        .filter(|l| zoom >= l.min_zoom)
+                        .cloned(),
+                );
             });
         }
         dedup_labels(&mut tile_labels);
