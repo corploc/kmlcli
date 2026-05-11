@@ -58,7 +58,6 @@ impl<'a> MapView<'a> {
         let lat_bounds = self.viewport.lat_bounds();
         let visible =
             math::visible_tiles(lat_bounds[0], lat_bounds[1], x_bounds[0], x_bounds[1], zoom);
-        // Cap tile count to avoid rendering too many
         let visible: Vec<_> = visible.into_iter().take(16).collect();
 
         let mut tile_segments = Vec::new();
@@ -81,13 +80,17 @@ impl<'a> MapView<'a> {
             .paint(move |ctx| {
                 // Background: tile map
                 for seg in &tile_segments {
-                    ctx.draw(&CanvasLine {
-                        x1: seg.x1,
-                        y1: seg.y1,
-                        x2: seg.x2,
-                        y2: seg.y2,
-                        color: seg.color,
-                    });
+                    if let Some((cx1, cy1, cx2, cy2)) =
+                        clip_line(seg.x1, seg.y1, seg.x2, seg.y2, &x_bounds, &y_bounds)
+                    {
+                        ctx.draw(&CanvasLine {
+                            x1: cx1,
+                            y1: cy1,
+                            x2: cx2,
+                            y2: cy2,
+                            color: seg.color,
+                        });
+                    }
                 }
 
                 // Foreground: KML data
@@ -100,26 +103,116 @@ impl<'a> MapView<'a> {
                             y2,
                             color,
                         } => {
-                            ctx.draw(&CanvasLine {
-                                x1: *x1,
-                                y1: *y1,
-                                x2: *x2,
-                                y2: *y2,
-                                color: *color,
-                            });
+                            if let Some((cx1, cy1, cx2, cy2)) =
+                                clip_line(*x1, *y1, *x2, *y2, &x_bounds, &y_bounds)
+                            {
+                                ctx.draw(&CanvasLine {
+                                    x1: cx1,
+                                    y1: cy1,
+                                    x2: cx2,
+                                    y2: cy2,
+                                    color: *color,
+                                });
+                            }
                         }
                         DrawCmd::Point { x, y, color } => {
-                            let coords = [(*x, *y)];
-                            ctx.draw(&Points {
-                                coords: &coords,
-                                color: *color,
-                            });
+                            if *x >= x_bounds[0]
+                                && *x <= x_bounds[1]
+                                && *y >= y_bounds[0]
+                                && *y <= y_bounds[1]
+                            {
+                                let coords = [(*x, *y)];
+                                ctx.draw(&Points {
+                                    coords: &coords,
+                                    color: *color,
+                                });
+                            }
                         }
                     }
                 }
             })
     }
 }
+
+// -- Cohen-Sutherland line clipping --
+
+const INSIDE: u8 = 0;
+const LEFT: u8 = 1;
+const RIGHT: u8 = 2;
+const BOTTOM: u8 = 4;
+const TOP: u8 = 8;
+
+fn outcode(x: f64, y: f64, x_bounds: &[f64; 2], y_bounds: &[f64; 2]) -> u8 {
+    let mut code = INSIDE;
+    if x < x_bounds[0] {
+        code |= LEFT;
+    } else if x > x_bounds[1] {
+        code |= RIGHT;
+    }
+    if y < y_bounds[0] {
+        code |= BOTTOM;
+    } else if y > y_bounds[1] {
+        code |= TOP;
+    }
+    code
+}
+
+/// Clip a line segment to the rectangle defined by x_bounds and y_bounds.
+/// Returns Some((x1, y1, x2, y2)) if any portion is visible, None if fully outside.
+fn clip_line(
+    mut x1: f64,
+    mut y1: f64,
+    mut x2: f64,
+    mut y2: f64,
+    x_bounds: &[f64; 2],
+    y_bounds: &[f64; 2],
+) -> Option<(f64, f64, f64, f64)> {
+    let mut code1 = outcode(x1, y1, x_bounds, y_bounds);
+    let mut code2 = outcode(x2, y2, x_bounds, y_bounds);
+
+    loop {
+        if (code1 | code2) == 0 {
+            // Both inside
+            return Some((x1, y1, x2, y2));
+        }
+        if (code1 & code2) != 0 {
+            // Both outside same side
+            return None;
+        }
+
+        // Pick the point that is outside
+        let code_out = if code1 != 0 { code1 } else { code2 };
+        let dx = x2 - x1;
+        let dy = y2 - y1;
+
+        let (x, y);
+        if code_out & TOP != 0 {
+            x = x1 + dx * (y_bounds[1] - y1) / dy;
+            y = y_bounds[1];
+        } else if code_out & BOTTOM != 0 {
+            x = x1 + dx * (y_bounds[0] - y1) / dy;
+            y = y_bounds[0];
+        } else if code_out & RIGHT != 0 {
+            y = y1 + dy * (x_bounds[1] - x1) / dx;
+            x = x_bounds[1];
+        } else {
+            y = y1 + dy * (x_bounds[0] - x1) / dx;
+            x = x_bounds[0];
+        }
+
+        if code_out == code1 {
+            x1 = x;
+            y1 = y;
+            code1 = outcode(x1, y1, x_bounds, y_bounds);
+        } else {
+            x2 = x;
+            y2 = y;
+            code2 = outcode(x2, y2, x_bounds, y_bounds);
+        }
+    }
+}
+
+// -- Draw commands --
 
 enum DrawCmd {
     Line {
