@@ -12,43 +12,36 @@ pub enum Action {
     MoveUp,
     MoveDown,
     ToggleExpand,
-    SwitchFocus,
+    ToggleTree,
     ZoomIn,
     ZoomOut,
     PanLeft,
     PanRight,
     PanUp,
     PanDown,
-    Search,
     None,
 }
 
-pub fn handle_key(key: KeyEvent, focus: Focus) -> Action {
-    // Global bindings
+pub fn handle_key(key: KeyEvent) -> Action {
     match key.code {
-        KeyCode::Char('q') => return Action::Quit,
-        KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => return Action::Quit,
-        KeyCode::Tab => return Action::SwitchFocus,
-        KeyCode::Char('/') => return Action::Search,
-        _ => {}
-    }
+        KeyCode::Char('q') => Action::Quit,
+        KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => Action::Quit,
 
-    match focus {
-        Focus::Tree => match key.code {
-            KeyCode::Char('j') | KeyCode::Down => Action::MoveDown,
-            KeyCode::Char('k') | KeyCode::Up => Action::MoveUp,
-            KeyCode::Enter => Action::ToggleExpand,
-            _ => Action::None,
-        },
-        Focus::Map => match key.code {
-            KeyCode::Char('h') | KeyCode::Left => Action::PanLeft,
-            KeyCode::Char('l') | KeyCode::Right => Action::PanRight,
-            KeyCode::Char('k') | KeyCode::Up => Action::PanUp,
-            KeyCode::Char('j') | KeyCode::Down => Action::PanDown,
-            KeyCode::Char('+') => Action::ZoomIn,
-            KeyCode::Char('-') => Action::ZoomOut,
-            _ => Action::None,
-        },
+        // Tree navigation — always available
+        KeyCode::Char('j') | KeyCode::Down => Action::MoveDown,
+        KeyCode::Char('k') | KeyCode::Up => Action::MoveUp,
+        KeyCode::Enter => Action::ToggleExpand,
+
+        // Map controls — always available
+        KeyCode::Char('h') | KeyCode::Left => Action::PanLeft,
+        KeyCode::Char('l') | KeyCode::Right => Action::PanRight,
+        KeyCode::Char('+') | KeyCode::Char('=') => Action::ZoomIn,
+        KeyCode::Char('-') => Action::ZoomOut,
+
+        // Toggle tree panel
+        KeyCode::Char('t') | KeyCode::Tab => Action::ToggleTree,
+
+        _ => Action::None,
     }
 }
 

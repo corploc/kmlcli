@@ -2,16 +2,17 @@ use ratatui::{
     style::{Color, Style},
     symbols::Marker,
     text::Span,
-    widgets::{
-        canvas::{Canvas, Line as CanvasLine, Points},
-        Block, Borders,
-    },
+    widgets::canvas::{Canvas, Line as CanvasLine, Points},
 };
 
 use crate::{
     model::{Geometry, KmlDocument},
     projection::Viewport,
-    tiles::{fetch::TileCache, math, render::render_tile_features},
+    tiles::{
+        fetch::TileCache,
+        math,
+        render::{render_tile_features, render_tile_labels},
+    },
 };
 
 pub struct MapView<'a> {
@@ -43,18 +44,7 @@ impl<'a> MapView<'a> {
         let x_bounds = self.viewport.x_bounds();
         let y_bounds = self.viewport.y_bounds();
 
-        let border_style = if self.focused {
-            ratatui::style::Style::default().fg(Color::Yellow)
-        } else {
-            ratatui::style::Style::default()
-        };
-
-        let block = Block::default()
-            .borders(Borders::ALL)
-            .title("Map")
-            .border_style(border_style);
-
-        // Collect tile background segments
+        // Collect tile background segments + labels
         let zoom = self.viewport.zoom_level().min(16);
         let lat_bounds = self.viewport.lat_bounds();
         let visible =
@@ -62,25 +52,25 @@ impl<'a> MapView<'a> {
         let visible: Vec<_> = visible.into_iter().take(16).collect();
 
         let mut tile_segments = Vec::new();
+        let mut tile_labels = Vec::new();
         for tc in &visible {
             if let Some(features) = self.tile_cache.get_cached(tc) {
-                let segs = render_tile_features(&features, self.viewport);
-                tile_segments.extend(segs);
+                tile_segments.extend(render_tile_features(&features, self.viewport));
+                tile_labels.extend(render_tile_labels(&features, self.viewport));
             }
         }
 
         // Collect KML foreground segments + labels
         let selected_path = self.selected_path.map(|p| p.to_vec());
         let kml_segments = collect_segments(self.doc, self.viewport, &selected_path);
-        let labels = collect_labels(self.doc, self.viewport, &selected_path);
+        let kml_labels = collect_labels(self.doc, self.viewport, &selected_path);
 
         Canvas::default()
-            .block(block)
             .x_bounds(x_bounds)
             .y_bounds(y_bounds)
             .marker(Marker::Braille)
             .paint(move |ctx| {
-                // Background: tile map
+                // Background: tile geometry
                 for seg in &tile_segments {
                     if let Some((cx1, cy1, cx2, cy2)) =
                         clip_line(seg.x1, seg.y1, seg.x2, seg.y2, &x_bounds, &y_bounds)
@@ -95,7 +85,7 @@ impl<'a> MapView<'a> {
                     }
                 }
 
-                // Foreground: KML data
+                // Foreground: KML geometry
                 for seg in &kml_segments {
                     match seg {
                         DrawCmd::Line {
@@ -133,8 +123,26 @@ impl<'a> MapView<'a> {
                     }
                 }
 
-                // Labels
-                for label in &labels {
+                // Tile place labels (countries, cities, roads, etc.)
+                for label in &tile_labels {
+                    if label.x >= x_bounds[0]
+                        && label.x <= x_bounds[1]
+                        && label.y >= y_bounds[0]
+                        && label.y <= y_bounds[1]
+                    {
+                        ctx.print(
+                            label.x,
+                            label.y,
+                            ratatui::text::Line::from(Span::styled(
+                                label.text.clone(),
+                                Style::default().fg(label.color),
+                            )),
+                        );
+                    }
+                }
+
+                // KML element labels
+                for label in &kml_labels {
                     if label.x >= x_bounds[0]
                         && label.x <= x_bounds[1]
                         && label.y >= y_bounds[0]

@@ -19,7 +19,7 @@ use crate::{
     projection::Viewport,
     tiles::fetch::TileCache,
     tui::{
-        input::{handle_key, handle_mouse, Action, Focus},
+        input::{handle_key, handle_mouse, Action},
         map::MapView,
         tree::{kind_to_icon, TreeView, TreeViewItem},
     },
@@ -38,7 +38,6 @@ pub struct TreeItem {
 pub struct App {
     doc: KmlDocument,
     viewport: Viewport,
-    focus: Focus,
     selected: usize,
     tree_items: Vec<TreeItem>,
     tree_scroll: usize,
@@ -67,7 +66,6 @@ impl App {
         let app = Self {
             doc,
             viewport,
-            focus: Focus::Tree,
             selected: 0,
             tree_items,
             tree_scroll: 0,
@@ -110,7 +108,7 @@ impl App {
             if event::poll(Duration::from_millis(100))? {
                 match event::read()? {
                     Event::Key(key) => {
-                        let action = handle_key(key, self.focus);
+                        let action = handle_key(key);
                         self.handle_action(action);
                     }
                     Event::Mouse(mouse) => {
@@ -131,11 +129,8 @@ impl App {
     fn handle_action(&mut self, action: Action) {
         match action {
             Action::Quit => self.should_quit = true,
-            Action::SwitchFocus => {
-                self.focus = match self.focus {
-                    Focus::Tree => Focus::Map,
-                    Focus::Map => Focus::Tree,
-                };
+            Action::ToggleTree => {
+                self.show_tree = !self.show_tree;
             }
             Action::MoveDown => {
                 let visible: Vec<usize> = self.visible_indices();
@@ -204,7 +199,7 @@ impl App {
                 self.viewport.pan_down();
                 self.prefetch_visible_tiles();
             }
-            Action::Search | Action::None => {}
+            Action::None => {}
         }
     }
 
@@ -326,15 +321,10 @@ impl App {
             // Clear background behind the floating panel
             f.render_widget(Clear, tree_area);
 
-            let tree_border_style = if self.focus == Focus::Tree {
-                Style::default().fg(Color::Yellow)
-            } else {
-                Style::default().fg(Color::DarkGray)
-            };
             let tree_block = Block::default()
                 .borders(Borders::ALL)
                 .title(" Features ")
-                .border_style(tree_border_style);
+                .border_style(Style::default().fg(Color::DarkGray));
             let tree_inner = tree_block.inner(tree_area);
             f.render_widget(tree_block, tree_area);
 
@@ -364,14 +354,10 @@ impl App {
         }
 
         // Status bar
-        let focus_label = match self.focus {
-            Focus::Tree => "TREE",
-            Focus::Map => "MAP",
-        };
         let doc_name = self.doc.name.as_deref().unwrap_or("untitled");
         let zoom = self.viewport.zoom_level();
         let status_text = format!(
-            " {doc_name} | [{focus_label}] | z{zoom} | [q]uit [tab]focus [j/k]nav [+/-]zoom [hjkl]pan [scroll]zoom [shift+scroll]pan"
+            " {doc_name} | z{zoom} | [q]uit [t]ree [j/k]nav [+/-]zoom [hjkl]pan [scroll]zoom [shift+scroll]pan"
         );
         let status =
             Paragraph::new(Span::raw(status_text)).style(Style::default().fg(Color::DarkGray));

@@ -13,6 +13,13 @@ pub struct TileSegment {
     pub color: Color,
 }
 
+pub struct TileLabel {
+    pub x: f64,
+    pub y: f64,
+    pub text: String,
+    pub color: Color,
+}
+
 pub fn render_tile_features(features: &[DecodedFeature], viewport: &Viewport) -> Vec<TileSegment> {
     let mut segments = Vec::new();
 
@@ -55,6 +62,45 @@ pub fn render_tile_features(features: &[DecodedFeature], viewport: &Viewport) ->
     segments
 }
 
+/// Extract labels from decoded tile features (place names, road names, water names).
+pub fn render_tile_labels(features: &[DecodedFeature], viewport: &Viewport) -> Vec<TileLabel> {
+    let mut labels = Vec::new();
+
+    for feature in features {
+        let name = match feature.properties.get("name") {
+            Some(n) if !n.is_empty() => n,
+            _ => continue,
+        };
+
+        let color = match label_color(&feature.layer, &feature.properties) {
+            Some(c) => c,
+            None => continue,
+        };
+
+        // Use first point of first ring as label position
+        let (lon, lat) = match feature.rings.first().and_then(|r| r.first()) {
+            Some(&pt) => pt,
+            None => continue,
+        };
+
+        let coord = Coord {
+            lon,
+            lat,
+            alt: None,
+        };
+        let (x, y) = viewport.project_for_canvas(&coord);
+
+        labels.push(TileLabel {
+            x,
+            y,
+            text: name.clone(),
+            color,
+        });
+    }
+
+    labels
+}
+
 fn layer_color(layer: &str) -> Option<Color> {
     match layer {
         "water" => Some(Color::Blue),
@@ -65,6 +111,29 @@ fn layer_color(layer: &str) -> Option<Color> {
         "transportation" => Some(Color::Rgb(80, 80, 80)),
         "building" => Some(Color::Rgb(60, 60, 60)),
         "boundary" => Some(Color::Rgb(100, 100, 100)),
+        _ => None,
+    }
+}
+
+fn label_color(layer: &str, props: &std::collections::HashMap<String, String>) -> Option<Color> {
+    match layer {
+        "place" => {
+            let class = props.get("class").map(|s| s.as_str()).unwrap_or("");
+            match class {
+                "country" => Some(Color::White),
+                "state" => Some(Color::Rgb(180, 180, 180)),
+                "city" => Some(Color::Rgb(200, 200, 200)),
+                "town" => Some(Color::Rgb(150, 150, 150)),
+                "village" | "hamlet" | "suburb" | "quarter" | "neighbourhood" => {
+                    Some(Color::Rgb(120, 120, 120))
+                }
+                _ => Some(Color::Rgb(100, 100, 100)),
+            }
+        }
+        "transportation_name" => Some(Color::Rgb(90, 90, 90)),
+        "water_name" => Some(Color::Rgb(80, 80, 180)),
+        "mountain_peak" => Some(Color::Rgb(160, 140, 100)),
+        "poi" => Some(Color::Rgb(100, 100, 100)),
         _ => None,
     }
 }

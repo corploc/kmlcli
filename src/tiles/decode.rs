@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use super::math::TileCoord;
 use super::proto::{GeomType, Tile};
 
@@ -6,6 +8,7 @@ pub struct DecodedFeature {
     pub layer: String,
     pub geom_type: GeomType,
     pub rings: Vec<Vec<(f64, f64)>>, // Vec of rings, each ring is Vec<(lon, lat)>
+    pub properties: HashMap<String, String>,
 }
 
 pub fn decode_tile(tile: &Tile, coord: &TileCoord) -> Vec<DecodedFeature> {
@@ -23,10 +26,43 @@ pub fn decode_tile(tile: &Tile, coord: &TileCoord) -> Vec<DecodedFeature> {
             if rings.is_empty() {
                 continue;
             }
+
+            // Extract properties from tags (interleaved key/value indices)
+            let mut properties = HashMap::new();
+            let tags = &feature.tags;
+            let mut ti = 0;
+            while ti + 1 < tags.len() {
+                let key_idx = tags[ti] as usize;
+                let val_idx = tags[ti + 1] as usize;
+                ti += 2;
+                if let (Some(key), Some(val)) = (layer.keys.get(key_idx), layer.values.get(val_idx))
+                {
+                    let val_str = if let Some(s) = &val.string_value {
+                        s.clone()
+                    } else if let Some(v) = val.int_value {
+                        v.to_string()
+                    } else if let Some(v) = val.float_value {
+                        v.to_string()
+                    } else if let Some(v) = val.double_value {
+                        v.to_string()
+                    } else if let Some(v) = val.uint_value {
+                        v.to_string()
+                    } else if let Some(v) = val.sint_value {
+                        v.to_string()
+                    } else if let Some(v) = val.bool_value {
+                        v.to_string()
+                    } else {
+                        continue;
+                    };
+                    properties.insert(key.clone(), val_str);
+                }
+            }
+
             features.push(DecodedFeature {
                 layer: layer_name.clone(),
                 geom_type,
                 rings,
+                properties,
             });
         }
     }
