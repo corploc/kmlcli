@@ -52,9 +52,10 @@ pub struct Value {
     pub bool_value: Option<bool>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
 #[repr(i32)]
 pub enum GeomType {
+    #[default]
     Unknown = 0,
     Point = 1,
     LineString = 2,
@@ -69,5 +70,17 @@ impl GeomType {
             3 => Self::Polygon,
             _ => Self::Unknown,
         }
+    }
+}
+
+impl From<i32> for GeomType {
+    fn from(val: i32) -> Self {
+        Self::from_i32(val)
+    }
+}
+
+impl From<GeomType> for i32 {
+    fn from(g: GeomType) -> i32 {
+        g as i32
     }
 }
