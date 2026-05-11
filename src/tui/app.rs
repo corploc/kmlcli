@@ -2,15 +2,15 @@ use std::time::Duration;
 
 use color_eyre::eyre::Result;
 use crossterm::{
-    event::{self, Event},
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{
-    layout::{Constraint, Direction, Layout},
+    layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Style},
     text::Span,
-    widgets::{Block, Borders, Paragraph},
+    widgets::{Block, Borders, Clear, Paragraph},
     Frame,
 };
 
@@ -19,8 +19,7 @@ use crate::{
     projection::Viewport,
     tiles::fetch::TileCache,
     tui::{
-        details::DetailsView,
-        input::{handle_key, Action, Focus},
+        input::{handle_key, handle_mouse, Action, Focus},
         map::MapView,
         tree::{kind_to_icon, TreeView, TreeViewItem},
     },
@@ -45,6 +44,7 @@ pub struct App {
     tree_scroll: usize,
     should_quit: bool,
     tile_cache: TileCache,
+    show_tree: bool,
 }
 
 impl App {
@@ -73,6 +73,7 @@ impl App {
             tree_scroll: 0,
             should_quit: false,
             tile_cache,
+            show_tree: true,
         };
         app.prefetch_visible_tiles();
         app
@@ -81,7 +82,7 @@ impl App {
     pub fn run(mut self) -> Result<()> {
         enable_raw_mode()?;
         let mut stderr = std::io::stderr();
-        execute!(stderr, EnterAlternateScreen)?;
+        execute!(stderr, EnterAlternateScreen, EnableMouseCapture)?;
 
         let backend = ratatui::backend::CrosstermBackend::new(stderr);
         let mut terminal = ratatui::Terminal::new(backend)?;
@@ -89,7 +90,11 @@ impl App {
         let result = self.event_loop(&mut terminal);
 
         disable_raw_mode()?;
-        execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+        execute!(
+            terminal.backend_mut(),
+            LeaveAlternateScreen,
+            DisableMouseCapture
+        )?;
         terminal.show_cursor()?;
 
         result
@@ -103,9 +108,16 @@ impl App {
             terminal.draw(|f| self.draw(f))?;
 
             if event::poll(Duration::from_millis(100))? {
-                if let Event::Key(key) = event::read()? {
-                    let action = handle_key(key, self.focus);
-                    self.handle_action(action);
+                match event::read()? {
+                    Event::Key(key) => {
+                        let action = handle_key(key, self.focus);
+                        self.handle_action(action);
+                    }
+                    Event::Mouse(mouse) => {
+                        let action = handle_mouse(mouse);
+                        self.handle_action(action);
+                    }
+                    _ => {}
                 }
             }
 
@@ -130,7 +142,6 @@ impl App {
                 if let Some(pos) = visible.iter().position(|&i| i == self.selected) {
                     if pos + 1 < visible.len() {
                         self.selected = visible[pos + 1];
-                        // scroll down if needed (use 20 as default visible height)
                         let new_pos = pos + 1;
                         if new_pos >= self.tree_scroll + 20 {
                             self.tree_scroll = new_pos.saturating_sub(19);
@@ -162,7 +173,6 @@ impl App {
                         self.tree_items[self.selected].expanded =
                             !self.tree_items[self.selected].expanded;
                     } else {
-                        // Leaf: center viewport on first coord
                         if let Some(coord) = self.first_coord_of_selected() {
                             self.viewport.center_on(&coord);
                             self.prefetch_visible_tiles();
@@ -248,7 +258,6 @@ impl App {
             visible.push(i);
             let item = &self.tree_items[i];
             if item.has_children && !item.expanded {
-                // skip children
                 let depth = item.depth;
                 i += 1;
                 while i < self.tree_items.len() && self.tree_items[i].depth > depth {
@@ -264,7 +273,6 @@ impl App {
     fn draw(&self, f: &mut Frame) {
         let area = f.area();
 
-        // Terminal too small
         if area.width < 40 || area.height < 10 {
             let msg = Paragraph::new("Terminal too small (min 40x10)")
                 .style(Style::default().fg(Color::Red));
@@ -272,56 +280,64 @@ impl App {
             return;
         }
 
-        let show_tree = area.width >= 60;
-
-        // Split: body + details + status
+        // Layout: map (full area) + status bar (1 line at bottom)
         let outer = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Min(0),
-                Constraint::Length(3),
-                Constraint::Length(1),
-            ])
+            .constraints([Constraint::Min(0), Constraint::Length(1)])
             .split(area);
 
-        let body_area = outer[0];
-        let details_area = outer[1];
-        let status_area = outer[2];
+        let map_area = outer[0];
+        let status_area = outer[1];
 
-        // Selected path + feature (shared by tree, map, details)
+        // Selected path
         let selected_path = self
             .tree_items
             .get(self.selected)
             .map(|i| i.feature_path.as_slice());
-        let selected_feature = self
-            .tree_items
-            .get(self.selected)
-            .and_then(|item| self.get_feature(&item.feature_path));
 
-        if show_tree {
-            // Split body: tree 30% + map 70%
-            let body = Layout::default()
-                .direction(Direction::Horizontal)
-                .constraints([Constraint::Percentage(30), Constraint::Percentage(70)])
-                .split(body_area);
+        // Map — fullscreen
+        let map_view = MapView::new(
+            &self.doc,
+            &self.viewport,
+            selected_path,
+            true,
+            &self.tile_cache,
+        );
+        f.render_widget(map_view.widget(), map_area);
 
-            let tree_area = body[0];
-            let map_area = body[1];
+        // Floating tree panel overlay
+        if self.show_tree {
+            let visible_indices = self.visible_indices();
+            let item_count = visible_indices.len();
 
-            // Tree panel
+            // Size the panel to fit content, with limits
+            let panel_width = (area.width / 3).max(25).min(50);
+            let panel_height = (item_count as u16 + 2)
+                .min(area.height.saturating_sub(4))
+                .max(4);
+
+            let tree_area = Rect {
+                x: 1,
+                y: 1,
+                width: panel_width,
+                height: panel_height,
+            };
+
+            // Clear background behind the floating panel
+            f.render_widget(Clear, tree_area);
+
             let tree_border_style = if self.focus == Focus::Tree {
                 Style::default().fg(Color::Yellow)
             } else {
-                Style::default()
+                Style::default().fg(Color::DarkGray)
             };
             let tree_block = Block::default()
                 .borders(Borders::ALL)
-                .title("Features")
+                .title(" Features ")
                 .border_style(tree_border_style);
             let tree_inner = tree_block.inner(tree_area);
             f.render_widget(tree_block, tree_area);
 
-            let visible_indices = self.visible_indices();
             let view_items: Vec<TreeViewItem> = visible_indices
                 .iter()
                 .map(|&idx| {
@@ -345,31 +361,7 @@ impl App {
                 TreeView::new(&view_items, selected_pos, self.tree_scroll),
                 tree_inner,
             );
-
-            // Map panel
-            let map_view = MapView::new(
-                &self.doc,
-                &self.viewport,
-                selected_path,
-                self.focus == Focus::Map,
-                &self.tile_cache,
-            );
-            f.render_widget(map_view.widget(), map_area);
-        } else {
-            // Degraded: map only
-            let map_view = MapView::new(
-                &self.doc,
-                &self.viewport,
-                selected_path,
-                true,
-                &self.tile_cache,
-            );
-            f.render_widget(map_view.widget(), body_area);
         }
-
-        // Details panel
-        let details_view = DetailsView::new(selected_feature);
-        f.render_widget(details_view.widget(), details_area);
 
         // Status bar
         let focus_label = match self.focus {
@@ -379,7 +371,7 @@ impl App {
         let doc_name = self.doc.name.as_deref().unwrap_or("untitled");
         let zoom = self.viewport.zoom_level();
         let status_text = format!(
-            " {doc_name} | [{focus_label}] | z{zoom} | [q]uit [tab]focus [j/k]nav [+/-]zoom [hjkl]pan"
+            " {doc_name} | [{focus_label}] | z{zoom} | [q]uit [tab]focus [j/k]nav [+/-]zoom [hjkl]pan [scroll]zoom [shift+scroll]pan"
         );
         let status =
             Paragraph::new(Span::raw(status_text)).style(Style::default().fg(Color::DarkGray));

@@ -1,6 +1,7 @@
 use ratatui::{
-    style::Color,
+    style::{Color, Style},
     symbols::Marker,
+    text::Span,
     widgets::{
         canvas::{Canvas, Line as CanvasLine, Points},
         Block, Borders,
@@ -68,9 +69,10 @@ impl<'a> MapView<'a> {
             }
         }
 
-        // Collect KML foreground segments
+        // Collect KML foreground segments + labels
         let selected_path = self.selected_path.map(|p| p.to_vec());
         let kml_segments = collect_segments(self.doc, self.viewport, &selected_path);
+        let labels = collect_labels(self.doc, self.viewport, &selected_path);
 
         Canvas::default()
             .block(block)
@@ -128,6 +130,24 @@ impl<'a> MapView<'a> {
                                 });
                             }
                         }
+                    }
+                }
+
+                // Labels
+                for label in &labels {
+                    if label.x >= x_bounds[0]
+                        && label.x <= x_bounds[1]
+                        && label.y >= y_bounds[0]
+                        && label.y <= y_bounds[1]
+                    {
+                        ctx.print(
+                            label.x,
+                            label.y,
+                            ratatui::text::Line::from(Span::styled(
+                                label.text.clone(),
+                                Style::default().fg(label.color),
+                            )),
+                        );
                     }
                 }
             })
@@ -209,6 +229,94 @@ fn clip_line(
             y2 = y;
             code2 = outcode(x2, y2, x_bounds, y_bounds);
         }
+    }
+}
+
+// -- Labels --
+
+struct Label {
+    x: f64,
+    y: f64,
+    text: String,
+    color: Color,
+}
+
+fn collect_labels(
+    doc: &KmlDocument,
+    viewport: &Viewport,
+    selected_path: &Option<Vec<usize>>,
+) -> Vec<Label> {
+    let mut labels = Vec::new();
+    for (i, feature) in doc.features.iter().enumerate() {
+        collect_feature_labels(feature, viewport, &[i], selected_path, &mut labels);
+    }
+    labels
+}
+
+fn collect_feature_labels(
+    feature: &crate::model::Feature,
+    viewport: &Viewport,
+    path: &[usize],
+    selected_path: &Option<Vec<usize>>,
+    labels: &mut Vec<Label>,
+) {
+    match feature {
+        crate::model::Feature::Folder { features, .. } => {
+            for (i, child) in features.iter().enumerate() {
+                let mut child_path = path.to_vec();
+                child_path.push(i);
+                collect_feature_labels(child, viewport, &child_path, selected_path, labels);
+            }
+        }
+        crate::model::Feature::Placemark { name, geometry, .. } => {
+            if let Some(geom) = geometry {
+                if let Some(coord) = label_coord(geom) {
+                    let is_selected = selected_path.as_ref().map(|sp| sp == path).unwrap_or(false);
+                    let color = if is_selected {
+                        Color::Yellow
+                    } else {
+                        Color::White
+                    };
+                    let (x, y) = viewport.project_for_canvas(&coord);
+                    labels.push(Label {
+                        x,
+                        y,
+                        text: name.clone(),
+                        color,
+                    });
+                }
+            }
+        }
+    }
+}
+
+/// Pick a representative coordinate for label placement.
+fn label_coord(geom: &Geometry) -> Option<crate::model::Coord> {
+    match geom {
+        Geometry::Point(c) => Some(c.clone()),
+        Geometry::LineString(cs) => {
+            // Middle of the line
+            if cs.is_empty() {
+                return None;
+            }
+            Some(cs[cs.len() / 2].clone())
+        }
+        Geometry::Polygon(rings) => {
+            // Centroid approximation: average of outer ring
+            let ring = rings.first()?;
+            if ring.is_empty() {
+                return None;
+            }
+            let n = ring.len() as f64;
+            let lon = ring.iter().map(|c| c.lon).sum::<f64>() / n;
+            let lat = ring.iter().map(|c| c.lat).sum::<f64>() / n;
+            Some(crate::model::Coord {
+                lon,
+                lat,
+                alt: None,
+            })
+        }
+        Geometry::MultiGeometry(gs) => gs.first().and_then(label_coord),
     }
 }
 
