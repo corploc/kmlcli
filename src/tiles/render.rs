@@ -25,7 +25,7 @@ pub fn render_tile_features(features: &[DecodedFeature], viewport: &Viewport) ->
 
     for feature in features {
         let color = match road_color(&feature.layer, &feature.properties)
-            .or_else(|| layer_color(&feature.layer))
+            .or_else(|| layer_color(&feature.layer, &feature.properties))
         {
             Some(c) => c,
             None => continue,
@@ -143,13 +143,23 @@ fn road_color(layer: &str, props: &std::collections::HashMap<String, String>) ->
     }
 }
 
-fn layer_color(layer: &str) -> Option<Color> {
+fn layer_color(layer: &str, props: &std::collections::HashMap<String, String>) -> Option<Color> {
     match layer {
         "water" => Some(Color::Blue),
         "waterway" => Some(Color::Blue),
         "landuse" => Some(Color::DarkGray),
         "landcover" => Some(Color::DarkGray),
-        "park" => Some(Color::Green),
+        "park" => {
+            // Only render terrestrial parks, skip marine protected areas
+            let class = props.get("class").map(|s| s.as_str()).unwrap_or("");
+            match class {
+                "national_park" => Some(Color::Green),
+                "nature_reserve" => Some(Color::Rgb(30, 80, 30)),
+                // Skip protected_area, natura_2000, réserve_de_la_biosphère,
+                // zona_de_especial_*, site_of_special_*, etc. — mostly marine zones
+                _ => None,
+            }
+        }
         "building" => Some(Color::Rgb(60, 60, 60)),
         "boundary" => Some(Color::Rgb(100, 100, 100)),
         _ => None,
