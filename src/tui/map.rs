@@ -56,7 +56,7 @@ impl<'a> MapView<'a> {
         for tc in &visible {
             if let Some(features) = self.tile_cache.get_cached(tc) {
                 tile_segments.extend(render_tile_features(&features, self.viewport));
-                tile_labels.extend(render_tile_labels(&features, self.viewport));
+                tile_labels.extend(render_tile_labels(&features, self.viewport, zoom));
             }
         }
         dedup_labels(&mut tile_labels);

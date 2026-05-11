@@ -32,13 +32,11 @@ pub fn handle_key(key: KeyEvent) -> Action {
         KeyCode::Down => Action::MoveDown,
         KeyCode::Enter => Action::ToggleExpand,
 
-        // Map pan — hjkl (vim-style)
+        // Map pan — hjkl (vim-style, no arrows)
         KeyCode::Char('h') => Action::PanLeft,
         KeyCode::Char('j') => Action::PanDown,
         KeyCode::Char('k') => Action::PanUp,
         KeyCode::Char('l') => Action::PanRight,
-        KeyCode::Left => Action::PanLeft,
-        KeyCode::Right => Action::PanRight,
 
         // Map zoom
         KeyCode::Char('+') | KeyCode::Char('=') => Action::ZoomIn,

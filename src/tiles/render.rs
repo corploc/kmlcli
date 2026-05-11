@@ -65,8 +65,12 @@ pub fn render_tile_features(features: &[DecodedFeature], viewport: &Viewport) ->
 }
 
 /// Extract labels from decoded tile features.
-/// Only shows major road names, all place names, and water names.
-pub fn render_tile_labels(features: &[DecodedFeature], viewport: &Viewport) -> Vec<TileLabel> {
+/// Filters by zoom level: low zoom = countries only, higher zoom = more detail.
+pub fn render_tile_labels(
+    features: &[DecodedFeature],
+    viewport: &Viewport,
+    zoom: u32,
+) -> Vec<TileLabel> {
     let mut labels = Vec::new();
 
     for feature in features {
@@ -75,7 +79,7 @@ pub fn render_tile_labels(features: &[DecodedFeature], viewport: &Viewport) -> V
             _ => continue,
         };
 
-        let color = match label_color(&feature.layer, &feature.properties) {
+        let color = match label_color(&feature.layer, &feature.properties, zoom) {
             Some(c) => c,
             None => continue,
         };
@@ -166,31 +170,40 @@ fn layer_color(layer: &str, props: &std::collections::HashMap<String, String>) -
     }
 }
 
-fn label_color(layer: &str, props: &std::collections::HashMap<String, String>) -> Option<Color> {
+fn label_color(
+    layer: &str,
+    props: &std::collections::HashMap<String, String>,
+    zoom: u32,
+) -> Option<Color> {
     match layer {
         "place" => {
             let class = props.get("class").map(|s| s.as_str()).unwrap_or("");
             match class {
+                // z0-z3: countries only
                 "country" => Some(Color::White),
-                "state" => Some(Color::Rgb(180, 180, 180)),
-                "city" => Some(Color::Rgb(200, 200, 200)),
-                "town" => Some(Color::Rgb(150, 150, 150)),
-                "village" => Some(Color::Rgb(120, 120, 120)),
-                // Skip hamlet, suburb, quarter, neighbourhood — too cluttered
+                // z4+: states/regions
+                "state" if zoom >= 4 => Some(Color::Rgb(180, 180, 180)),
+                // z6+: cities
+                "city" if zoom >= 6 => Some(Color::Rgb(200, 200, 200)),
+                // z8+: towns
+                "town" if zoom >= 8 => Some(Color::Rgb(150, 150, 150)),
+                // z10+: villages
+                "village" if zoom >= 10 => Some(Color::Rgb(120, 120, 120)),
                 _ => None,
             }
         }
         "transportation_name" => {
-            // Only label major roads
             let class = props.get("class").map(|s| s.as_str()).unwrap_or("");
             match class {
-                "motorway" => Some(Color::Rgb(200, 150, 80)),
-                "trunk" | "primary" => Some(Color::Rgb(160, 130, 70)),
-                // Skip secondary, tertiary, residential, service, etc.
+                // z6+: motorways
+                "motorway" if zoom >= 6 => Some(Color::Rgb(200, 150, 80)),
+                // z8+: trunk/primary
+                "trunk" | "primary" if zoom >= 8 => Some(Color::Rgb(160, 130, 70)),
                 _ => None,
             }
         }
-        "water_name" => Some(Color::Rgb(80, 80, 180)),
+        // z4+: water names
+        "water_name" if zoom >= 4 => Some(Color::Rgb(80, 80, 180)),
         _ => None,
     }
 }
