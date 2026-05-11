@@ -11,7 +11,7 @@ use crate::{
     tiles::{
         fetch::TileCache,
         math,
-        render::{render_tile_features, render_tile_labels},
+        render::{dedup_labels, render_tile_features, render_tile_labels},
     },
 };
 
@@ -59,6 +59,7 @@ impl<'a> MapView<'a> {
                 tile_labels.extend(render_tile_labels(&features, self.viewport));
             }
         }
+        dedup_labels(&mut tile_labels);
 
         // Collect KML foreground segments + labels
         let selected_path = self.selected_path.map(|p| p.to_vec());

@@ -24,7 +24,9 @@ pub fn render_tile_features(features: &[DecodedFeature], viewport: &Viewport) ->
     let mut segments = Vec::new();
 
     for feature in features {
-        let color = match layer_color(&feature.layer) {
+        let color = match road_color(&feature.layer, &feature.properties)
+            .or_else(|| layer_color(&feature.layer))
+        {
             Some(c) => c,
             None => continue,
         };
@@ -62,7 +64,8 @@ pub fn render_tile_features(features: &[DecodedFeature], viewport: &Viewport) ->
     segments
 }
 
-/// Extract labels from decoded tile features (place names, road names, water names).
+/// Extract labels from decoded tile features.
+/// Only shows major road names, all place names, and water names.
 pub fn render_tile_labels(features: &[DecodedFeature], viewport: &Viewport) -> Vec<TileLabel> {
     let mut labels = Vec::new();
 
@@ -101,6 +104,45 @@ pub fn render_tile_labels(features: &[DecodedFeature], viewport: &Viewport) -> V
     labels
 }
 
+/// Deduplicate labels that have the same text and are close together.
+/// Call this after collecting labels from all tiles.
+pub fn dedup_labels(labels: &mut Vec<TileLabel>) {
+    // Sort by text for grouping
+    labels.sort_by(|a, b| a.text.cmp(&b.text));
+
+    let mut i = 0;
+    while i < labels.len() {
+        let mut j = i + 1;
+        while j < labels.len() && labels[j].text == labels[i].text {
+            // Same text — check if close (within ~0.01 canvas units)
+            let dx = (labels[j].x - labels[i].x).abs();
+            let dy = (labels[j].y - labels[i].y).abs();
+            if dx < 0.5 && dy < 0.01 {
+                labels.remove(j);
+            } else {
+                j += 1;
+            }
+        }
+        i += 1;
+    }
+}
+
+/// Color for road geometry based on road class.
+fn road_color(layer: &str, props: &std::collections::HashMap<String, String>) -> Option<Color> {
+    if layer != "transportation" {
+        return None;
+    }
+    let class = props.get("class").map(|s| s.as_str()).unwrap_or("");
+    match class {
+        "motorway" => Some(Color::Rgb(200, 140, 50)), // orange
+        "trunk" => Some(Color::Rgb(180, 120, 40)),    // darker orange
+        "primary" => Some(Color::Rgb(150, 110, 50)),  // muted orange
+        "secondary" => Some(Color::Rgb(100, 90, 60)), // dim
+        "tertiary" => Some(Color::Rgb(80, 80, 80)),
+        _ => Some(Color::Rgb(55, 55, 55)), // minor roads very dim
+    }
+}
+
 fn layer_color(layer: &str) -> Option<Color> {
     match layer {
         "water" => Some(Color::Blue),
@@ -108,7 +150,6 @@ fn layer_color(layer: &str) -> Option<Color> {
         "landuse" => Some(Color::DarkGray),
         "landcover" => Some(Color::DarkGray),
         "park" => Some(Color::Green),
-        "transportation" => Some(Color::Rgb(80, 80, 80)),
         "building" => Some(Color::Rgb(60, 60, 60)),
         "boundary" => Some(Color::Rgb(100, 100, 100)),
         _ => None,
@@ -124,16 +165,22 @@ fn label_color(layer: &str, props: &std::collections::HashMap<String, String>) -
                 "state" => Some(Color::Rgb(180, 180, 180)),
                 "city" => Some(Color::Rgb(200, 200, 200)),
                 "town" => Some(Color::Rgb(150, 150, 150)),
-                "village" | "hamlet" | "suburb" | "quarter" | "neighbourhood" => {
-                    Some(Color::Rgb(120, 120, 120))
-                }
-                _ => Some(Color::Rgb(100, 100, 100)),
+                "village" => Some(Color::Rgb(120, 120, 120)),
+                // Skip hamlet, suburb, quarter, neighbourhood — too cluttered
+                _ => None,
             }
         }
-        "transportation_name" => Some(Color::Rgb(90, 90, 90)),
+        "transportation_name" => {
+            // Only label major roads
+            let class = props.get("class").map(|s| s.as_str()).unwrap_or("");
+            match class {
+                "motorway" => Some(Color::Rgb(200, 150, 80)),
+                "trunk" | "primary" => Some(Color::Rgb(160, 130, 70)),
+                // Skip secondary, tertiary, residential, service, etc.
+                _ => None,
+            }
+        }
         "water_name" => Some(Color::Rgb(80, 80, 180)),
-        "mountain_peak" => Some(Color::Rgb(160, 140, 100)),
-        "poi" => Some(Color::Rgb(100, 100, 100)),
         _ => None,
     }
 }
