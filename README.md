@@ -68,4 +68,4 @@ Tiles: OpenFreeMap MVT -> protobuf decode -> prerender segments
 
 ## License
 
-MIT
+MIT OR Apache-2.0

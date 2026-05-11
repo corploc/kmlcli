@@ -2,6 +2,11 @@
 name = "kmlcli"
 version = "0.1.0"
 edition = "2024"
+description = "KML/KMZ viewer in the terminal with braille map rendering"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/hokanosekai/kmlcli"
+keywords = ["kml", "kmz", "terminal", "tui", "map"]
+categories = ["command-line-utilities", "visualization"]
 
 [lib]
 name = "kmlcli"
