@@ -132,9 +132,12 @@ impl TileCache {
                         .replace("{x}", &coord.x.to_string())
                         .replace("{y}", &coord.y.to_string());
 
+                    let fetch_start = std::time::Instant::now();
                     if let Ok(response) = client.get(&url).send() {
                         if response.status().is_success() {
                             if let Ok(bytes) = response.bytes() {
+                                let fetch_ms = fetch_start.elapsed().as_secs_f64() * 1000.0;
+                                let decode_start = std::time::Instant::now();
                                 let rendered = if bytes.is_empty() {
                                     RenderedTile {
                                         segments: Vec::new(),
@@ -151,6 +154,25 @@ impl TileCache {
                                         Err(_) => continue,
                                     }
                                 };
+                                let decode_ms = decode_start.elapsed().as_secs_f64() * 1000.0;
+                                {
+                                    use std::io::Write;
+                                    if let Ok(mut f) = std::fs::OpenOptions::new()
+                                        .create(true)
+                                        .append(true)
+                                        .open("/tmp/kmlcli_perf.log")
+                                    {
+                                        let _ = writeln!(
+                                            f,
+                                            "fetch: z{}/{}/{} fetch={:.0}ms decode={:.0}ms segs={} labels={} bytes={}",
+                                            coord.z, coord.x, coord.y,
+                                            fetch_ms, decode_ms,
+                                            rendered.segments.len(),
+                                            rendered.labels.len(),
+                                            bytes.len(),
+                                        );
+                                    }
+                                }
                                 let mut cache_lock = cache.lock().unwrap();
                                 cache_lock.put(coord, rendered);
                             }

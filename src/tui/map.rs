@@ -44,33 +44,95 @@ impl<'a> MapView<'a> {
         let x_bounds = self.viewport.x_bounds();
         let y_bounds = self.viewport.y_bounds();
 
+        let t0 = std::time::Instant::now();
+
         // Collect tile background segments + labels
         let zoom = self.viewport.zoom_level().min(16);
         let lat_bounds = self.viewport.lat_bounds();
         let visible =
             math::visible_tiles(lat_bounds[0], lat_bounds[1], x_bounds[0], x_bounds[1], zoom);
         let visible: Vec<_> = visible.into_iter().take(16).collect();
+        let tiles_visible = visible.len();
+        let tiles_cached = visible
+            .iter()
+            .filter(|tc| self.tile_cache.with_cached(tc, |_| ()).is_some())
+            .count();
+
+        // Min segment length in viewport space — skip segments smaller than ~1 braille cell
+        let vp_width = x_bounds[1] - x_bounds[0];
+        let min_seg_sq = (vp_width / 300.0) * (vp_width / 300.0); // ~1 pixel at 300 cells wide
 
         let mut tile_segments: Vec<TileSegment> = Vec::new();
         let mut tile_labels: Vec<TileLabel> = Vec::new();
         for tc in &visible {
             self.tile_cache.with_cached(tc, |rendered| {
-                tile_segments.extend_from_slice(&rendered.segments);
+                for seg in &rendered.segments {
+                    // Quick reject: both points on same side = fully outside
+                    if (seg.x1 < x_bounds[0] && seg.x2 < x_bounds[0])
+                        || (seg.x1 > x_bounds[1] && seg.x2 > x_bounds[1])
+                        || (seg.y1 < y_bounds[0] && seg.y2 < y_bounds[0])
+                        || (seg.y1 > y_bounds[1] && seg.y2 > y_bounds[1])
+                    {
+                        continue;
+                    }
+                    // Skip sub-pixel segments
+                    let dx = seg.x2 - seg.x1;
+                    let dy = seg.y2 - seg.y1;
+                    if dx * dx + dy * dy < min_seg_sq {
+                        continue;
+                    }
+                    tile_segments.push(*seg);
+                }
                 tile_labels.extend(
                     rendered
                         .labels
                         .iter()
                         .filter(|l| zoom >= l.min_zoom)
+                        .filter(|l| {
+                            l.x >= x_bounds[0]
+                                && l.x <= x_bounds[1]
+                                && l.y >= y_bounds[0]
+                                && l.y <= y_bounds[1]
+                        })
                         .cloned(),
                 );
             });
         }
+        let t_tiles = t0.elapsed();
+
         dedup_labels(&mut tile_labels);
+        let t_dedup = t0.elapsed();
 
         // Collect KML foreground segments + labels
         let selected_path = self.selected_path.map(|p| p.to_vec());
         let kml_segments = collect_segments(self.doc, self.viewport, &selected_path);
         let kml_labels = collect_labels(self.doc, self.viewport, &selected_path);
+        let t_kml = t0.elapsed();
+
+        // Perf log
+        {
+            use std::io::Write;
+            if let Ok(mut f) = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open("/tmp/kmlcli_perf.log")
+            {
+                let _ = writeln!(
+                    f,
+                    "  collect: tiles={:.1}ms dedup={:.1}ms kml={:.1}ms | z{} tiles={}/{} segs={} labels={} kml_segs={} kml_labels={}",
+                    t_tiles.as_secs_f64() * 1000.0,
+                    (t_dedup - t_tiles).as_secs_f64() * 1000.0,
+                    (t_kml - t_dedup).as_secs_f64() * 1000.0,
+                    zoom,
+                    tiles_cached,
+                    tiles_visible,
+                    tile_segments.len(),
+                    tile_labels.len(),
+                    kml_segments.len(),
+                    kml_labels.len(),
+                );
+            }
+        }
 
         Canvas::default()
             .x_bounds(x_bounds)

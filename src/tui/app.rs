@@ -125,8 +125,32 @@ impl App {
         terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stderr>>,
         signal_quit: &Arc<AtomicBool>,
     ) -> Result<()> {
+        use std::io::Write;
+        let mut perf_log = std::fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open("/tmp/kmlcli_perf.log")
+            .ok();
+        let mut frame_count: u64 = 0;
+
         loop {
+            let frame_start = std::time::Instant::now();
             terminal.draw(|f| self.draw(f))?;
+            let draw_elapsed = frame_start.elapsed();
+
+            frame_count += 1;
+            if frame_count % 30 == 0 {
+                if let Some(ref mut log) = perf_log {
+                    let _ = writeln!(
+                        log,
+                        "frame={} draw={:.1}ms",
+                        frame_count,
+                        draw_elapsed.as_secs_f64() * 1000.0,
+                    );
+                    let _ = log.flush();
+                }
+            }
 
             if signal_quit.load(Ordering::Relaxed) || self.should_quit {
                 break;
@@ -143,7 +167,6 @@ impl App {
                         self.handle_action(action);
                     }
                     Event::FocusGained => {
-                        // Re-enable raw mode in case terminal lost state
                         let _ = enable_raw_mode();
                     }
                     _ => {}

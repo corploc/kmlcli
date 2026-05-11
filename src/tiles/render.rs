@@ -42,9 +42,17 @@ pub fn prerender_tile(features: &[DecodedFeature]) -> RenderedTile {
         {
             if matches!(feature.geom_type, GeomType::LineString | GeomType::Polygon) {
                 for ring in &feature.rings {
+                    // Douglas-Peucker-lite: skip segments shorter than ~0.0001°
+                    // (invisible at any reasonable terminal resolution)
+                    let min_len_sq = 1e-8;
                     for window in ring.windows(2) {
                         let (x1, y1) = project(window[0].0, window[0].1);
                         let (x2, y2) = project(window[1].0, window[1].1);
+                        let dx = x2 - x1;
+                        let dy = y2 - y1;
+                        if dx * dx + dy * dy < min_len_sq {
+                            continue;
+                        }
                         segments.push(TileSegment {
                             x1,
                             y1,
