@@ -54,10 +54,10 @@ impl<'a> MapView<'a> {
         let mut tile_segments = Vec::new();
         let mut tile_labels = Vec::new();
         for tc in &visible {
-            if let Some(features) = self.tile_cache.get_cached(tc) {
-                tile_segments.extend(render_tile_features(&features, self.viewport));
-                tile_labels.extend(render_tile_labels(&features, self.viewport, zoom));
-            }
+            self.tile_cache.with_cached(tc, |features| {
+                tile_segments.extend(render_tile_features(features, self.viewport));
+                tile_labels.extend(render_tile_labels(features, self.viewport, zoom));
+            });
         }
         dedup_labels(&mut tile_labels);
 

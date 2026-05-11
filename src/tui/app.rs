@@ -105,7 +105,7 @@ impl App {
         loop {
             terminal.draw(|f| self.draw(f))?;
 
-            if event::poll(Duration::from_millis(100))? {
+            if event::poll(Duration::from_millis(16))? {
                 match event::read()? {
                     Event::Key(key) => {
                         let action = handle_key(key);

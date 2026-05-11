@@ -109,26 +109,21 @@ pub fn render_tile_labels(
 }
 
 /// Deduplicate labels that have the same text and are close together.
-/// Call this after collecting labels from all tiles.
+/// O(n log n) — sort then single-pass retain.
 pub fn dedup_labels(labels: &mut Vec<TileLabel>) {
-    // Sort by text for grouping
     labels.sort_by(|a, b| a.text.cmp(&b.text));
 
-    let mut i = 0;
-    while i < labels.len() {
-        let mut j = i + 1;
-        while j < labels.len() && labels[j].text == labels[i].text {
-            // Same text — check if close (within ~0.01 canvas units)
-            let dx = (labels[j].x - labels[i].x).abs();
-            let dy = (labels[j].y - labels[i].y).abs();
-            if dx < 0.5 && dy < 0.01 {
-                labels.remove(j);
-            } else {
-                j += 1;
-            }
+    // Single pass: keep first occurrence of each text+proximity group
+    let mut kept: Vec<TileLabel> = Vec::with_capacity(labels.len());
+    for label in labels.drain(..) {
+        let is_dup = kept.iter().rev().take(5).any(|k| {
+            k.text == label.text && (k.x - label.x).abs() < 0.5 && (k.y - label.y).abs() < 0.01
+        });
+        if !is_dup {
+            kept.push(label);
         }
-        i += 1;
     }
+    *labels = kept;
 }
 
 /// Color for road geometry based on road class.
