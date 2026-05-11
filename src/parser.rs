@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use color_eyre::eyre::{eyre, Result};
+use color_eyre::eyre::{Result, eyre};
 use kml::reader::KmlReader;
 use kml::types::{Folder as KmlFolder, Geometry as KmlGeometry, Kml, Placemark as KmlPlacemark};
 
@@ -51,10 +51,10 @@ fn convert_kml(kml: &Kml<f64>, doc: &mut KmlDocument) {
         Kml::Document { elements, .. } => {
             // Extract name from elements (stored as Element nodes)
             for el in elements {
-                if let Kml::Element(e) = el {
-                    if e.name == "name" {
-                        doc.name = e.content.clone();
-                    }
+                if let Kml::Element(e) = el
+                    && e.name == "name"
+                {
+                    doc.name = e.content.clone();
                 }
             }
             // Process all other elements

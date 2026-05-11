@@ -39,28 +39,27 @@ pub fn prerender_tile(features: &[DecodedFeature]) -> RenderedTile {
         // Segments
         if let Some(color) = road_color(&feature.layer, &feature.properties)
             .or_else(|| layer_color(&feature.layer, &feature.properties))
+            && matches!(feature.geom_type, GeomType::LineString | GeomType::Polygon)
         {
-            if matches!(feature.geom_type, GeomType::LineString | GeomType::Polygon) {
-                for ring in &feature.rings {
-                    // Douglas-Peucker-lite: skip segments shorter than ~0.0001°
-                    // (invisible at any reasonable terminal resolution)
-                    let min_len_sq = 1e-8;
-                    for window in ring.windows(2) {
-                        let (x1, y1) = project(window[0].0, window[0].1);
-                        let (x2, y2) = project(window[1].0, window[1].1);
-                        let dx = x2 - x1;
-                        let dy = y2 - y1;
-                        if dx * dx + dy * dy < min_len_sq {
-                            continue;
-                        }
-                        segments.push(TileSegment {
-                            x1,
-                            y1,
-                            x2,
-                            y2,
-                            color,
-                        });
+            for ring in &feature.rings {
+                // Douglas-Peucker-lite: skip segments shorter than ~0.0001°
+                // (invisible at any reasonable terminal resolution)
+                let min_len_sq = 1e-8;
+                for window in ring.windows(2) {
+                    let (x1, y1) = project(window[0].0, window[0].1);
+                    let (x2, y2) = project(window[1].0, window[1].1);
+                    let dx = x2 - x1;
+                    let dy = y2 - y1;
+                    if dx * dx + dy * dy < min_len_sq {
+                        continue;
                     }
+                    segments.push(TileSegment {
+                        x1,
+                        y1,
+                        x2,
+                        y2,
+                        color,
+                    });
                 }
             }
         }
@@ -70,33 +69,31 @@ pub fn prerender_tile(features: &[DecodedFeature]) -> RenderedTile {
             Some(n) if !n.is_empty() => n,
             _ => continue,
         };
-        if let Some((color, min_zoom)) = label_style(&feature.layer, &feature.properties) {
-            if let Some(&(lon, lat)) = feature.rings.first().and_then(|r| r.first()) {
-                let (x, y) = project(lon, lat);
-                labels.push(TileLabel {
-                    x,
-                    y,
-                    text: name.clone(),
-                    color,
-                    min_zoom,
-                });
-            }
+        if let Some((color, min_zoom)) = label_style(&feature.layer, &feature.properties)
+            && let Some(&(lon, lat)) = feature.rings.first().and_then(|r| r.first())
+        {
+            let (x, y) = project(lon, lat);
+            labels.push(TileLabel {
+                x,
+                y,
+                text: name.clone(),
+                color,
+                min_zoom,
+            });
         }
     }
 
     RenderedTile { segments, labels }
 }
 
-/// Deduplicate labels that have the same text and are close together.
-/// O(n log n) — sort then single-pass retain.
+/// Deduplicate labels that have the same text.
+/// Same text = keep only first occurrence (tiles often duplicate features at boundaries).
 pub fn dedup_labels(labels: &mut Vec<TileLabel>) {
     labels.sort_by(|a, b| a.text.cmp(&b.text));
 
     let mut kept: Vec<TileLabel> = Vec::with_capacity(labels.len());
     for label in labels.drain(..) {
-        let is_dup = kept.iter().rev().take(5).any(|k| {
-            k.text == label.text && (k.x - label.x).abs() < 0.5 && (k.y - label.y).abs() < 0.01
-        });
+        let is_dup = kept.last().map(|k| k.text == label.text).unwrap_or(false);
         if !is_dup {
             kept.push(label);
         }

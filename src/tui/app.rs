@@ -1,19 +1,19 @@
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use color_eyre::eyre::Result;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use ratatui::{
+    Frame,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Style},
     text::Span,
     widgets::{Block, Borders, Clear, Paragraph},
-    Frame,
 };
 
 use crate::{
@@ -21,9 +21,9 @@ use crate::{
     projection::Viewport,
     tiles::fetch::TileCache,
     tui::{
-        input::{handle_key, handle_mouse, Action},
+        input::{Action, handle_key, handle_mouse},
         map::MapView,
-        tree::{kind_to_icon, TreeView, TreeViewItem},
+        tree::{TreeView, TreeViewItem, kind_to_icon},
     },
 };
 
@@ -140,16 +140,16 @@ impl App {
             let draw_elapsed = frame_start.elapsed();
 
             frame_count += 1;
-            if frame_count % 30 == 0 {
-                if let Some(ref mut log) = perf_log {
-                    let _ = writeln!(
-                        log,
-                        "frame={} draw={:.1}ms",
-                        frame_count,
-                        draw_elapsed.as_secs_f64() * 1000.0,
-                    );
-                    let _ = log.flush();
-                }
+            if frame_count.is_multiple_of(30)
+                && let Some(ref mut log) = perf_log
+            {
+                let _ = writeln!(
+                    log,
+                    "frame={} draw={:.1}ms",
+                    frame_count,
+                    draw_elapsed.as_secs_f64() * 1000.0,
+                );
+                let _ = log.flush();
             }
 
             if signal_quit.load(Ordering::Relaxed) || self.should_quit {
@@ -356,10 +356,8 @@ impl App {
             let item_count = visible_indices.len();
 
             // Size the panel to fit content, with limits
-            let panel_width = (area.width / 3).max(25).min(50);
-            let panel_height = (item_count as u16 + 2)
-                .min(area.height.saturating_sub(4))
-                .max(4);
+            let panel_width = (area.width / 3).clamp(25, 50);
+            let panel_height = (item_count as u16 + 2).clamp(4, area.height.saturating_sub(4));
 
             let tree_area = Rect {
                 x: 1,

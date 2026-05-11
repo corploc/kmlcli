@@ -11,7 +11,7 @@ use crate::{
     tiles::{
         fetch::TileCache,
         math,
-        render::{dedup_labels, TileLabel, TileSegment},
+        render::{TileLabel, TileSegment, dedup_labels},
     },
 };
 
@@ -346,22 +346,22 @@ fn collect_feature_labels(
             }
         }
         crate::model::Feature::Placemark { name, geometry, .. } => {
-            if let Some(geom) = geometry {
-                if let Some(coord) = label_coord(geom) {
-                    let is_selected = selected_path.as_ref().map(|sp| sp == path).unwrap_or(false);
-                    let color = if is_selected {
-                        Color::Yellow
-                    } else {
-                        Color::White
-                    };
-                    let (x, y) = viewport.project_for_canvas(&coord);
-                    labels.push(Label {
-                        x,
-                        y,
-                        text: name.clone(),
-                        color,
-                    });
-                }
+            if let Some(geom) = geometry
+                && let Some(coord) = label_coord(geom)
+            {
+                let is_selected = selected_path.as_ref().map(|sp| sp == path).unwrap_or(false);
+                let color = if is_selected {
+                    Color::Yellow
+                } else {
+                    Color::White
+                };
+                let (x, y) = viewport.project_for_canvas(&coord);
+                labels.push(Label {
+                    x,
+                    y,
+                    text: name.clone(),
+                    color,
+                });
             }
         }
     }

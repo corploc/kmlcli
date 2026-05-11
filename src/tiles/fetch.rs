@@ -20,6 +20,12 @@ pub struct TileCache {
     prefetch_tx: mpsc::Sender<Vec<TileCoord>>,
 }
 
+impl Default for TileCache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TileCache {
     pub fn new() -> Self {
         let cache = Arc::new(Mutex::new(LruCache::new(
@@ -133,50 +139,52 @@ impl TileCache {
                         .replace("{y}", &coord.y.to_string());
 
                     let fetch_start = std::time::Instant::now();
-                    if let Ok(response) = client.get(&url).send() {
-                        if response.status().is_success() {
-                            if let Ok(bytes) = response.bytes() {
-                                let fetch_ms = fetch_start.elapsed().as_secs_f64() * 1000.0;
-                                let decode_start = std::time::Instant::now();
-                                let rendered = if bytes.is_empty() {
-                                    RenderedTile {
-                                        segments: Vec::new(),
-                                        labels: Vec::new(),
-                                    }
-                                } else {
-                                    let decompressed =
-                                        decompress_gzip(&bytes).unwrap_or_else(|| bytes.to_vec());
-                                    match Tile::decode(decompressed.as_slice()) {
-                                        Ok(tile) => {
-                                            let features = decode_tile(&tile, &coord);
-                                            super::render::prerender_tile(&features)
-                                        }
-                                        Err(_) => continue,
-                                    }
-                                };
-                                let decode_ms = decode_start.elapsed().as_secs_f64() * 1000.0;
-                                {
-                                    use std::io::Write;
-                                    if let Ok(mut f) = std::fs::OpenOptions::new()
-                                        .create(true)
-                                        .append(true)
-                                        .open("/tmp/kmlcli_perf.log")
-                                    {
-                                        let _ = writeln!(
-                                            f,
-                                            "fetch: z{}/{}/{} fetch={:.0}ms decode={:.0}ms segs={} labels={} bytes={}",
-                                            coord.z, coord.x, coord.y,
-                                            fetch_ms, decode_ms,
-                                            rendered.segments.len(),
-                                            rendered.labels.len(),
-                                            bytes.len(),
-                                        );
-                                    }
+                    if let Ok(response) = client.get(&url).send()
+                        && response.status().is_success()
+                        && let Ok(bytes) = response.bytes()
+                    {
+                        let fetch_ms = fetch_start.elapsed().as_secs_f64() * 1000.0;
+                        let decode_start = std::time::Instant::now();
+                        let rendered = if bytes.is_empty() {
+                            RenderedTile {
+                                segments: Vec::new(),
+                                labels: Vec::new(),
+                            }
+                        } else {
+                            let decompressed =
+                                decompress_gzip(&bytes).unwrap_or_else(|| bytes.to_vec());
+                            match Tile::decode(decompressed.as_slice()) {
+                                Ok(tile) => {
+                                    let features = decode_tile(&tile, &coord);
+                                    super::render::prerender_tile(&features)
                                 }
-                                let mut cache_lock = cache.lock().unwrap();
-                                cache_lock.put(coord, rendered);
+                                Err(_) => continue,
+                            }
+                        };
+                        let decode_ms = decode_start.elapsed().as_secs_f64() * 1000.0;
+                        {
+                            use std::io::Write;
+                            if let Ok(mut f) = std::fs::OpenOptions::new()
+                                .create(true)
+                                .append(true)
+                                .open("/tmp/kmlcli_perf.log")
+                            {
+                                let _ = writeln!(
+                                    f,
+                                    "fetch: z{}/{}/{} fetch={:.0}ms decode={:.0}ms segs={} labels={} bytes={}",
+                                    coord.z,
+                                    coord.x,
+                                    coord.y,
+                                    fetch_ms,
+                                    decode_ms,
+                                    rendered.segments.len(),
+                                    rendered.labels.len(),
+                                    bytes.len(),
+                                );
                             }
                         }
+                        let mut cache_lock = cache.lock().unwrap();
+                        cache_lock.put(coord, rendered);
                     }
                 }
             });
@@ -191,7 +199,7 @@ impl TileCache {
         F: FnOnce(&RenderedTile) -> R,
     {
         let mut cache = self.cache.lock().unwrap();
-        cache.get(coord).map(|tile| f(tile))
+        cache.get(coord).map(f)
     }
 
     pub fn prefetch(&self, coords: Vec<TileCoord>) {

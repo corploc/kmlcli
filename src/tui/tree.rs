@@ -48,11 +48,7 @@ impl Widget for TreeView<'_> {
 
             let indent = "  ".repeat(item.depth);
             let expand_marker = if item.has_children {
-                if item.expanded {
-                    "▼ "
-                } else {
-                    "▶ "
-                }
+                if item.expanded { "▼ " } else { "▶ " }
             } else {
                 "  "
             };
