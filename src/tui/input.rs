@@ -54,7 +54,7 @@ pub fn handle_mouse(mouse: MouseEvent) -> Action {
     let ctrl = mouse.modifiers.contains(KeyModifiers::CONTROL);
     match mouse.kind {
         MouseEventKind::ScrollUp => {
-            if shift && ctrl {
+            if ctrl {
                 Action::ZoomIn
             } else if shift {
                 Action::PanLeft
@@ -63,7 +63,7 @@ pub fn handle_mouse(mouse: MouseEvent) -> Action {
             }
         }
         MouseEventKind::ScrollDown => {
-            if shift && ctrl {
+            if ctrl {
                 Action::ZoomOut
             } else if shift {
                 Action::PanRight

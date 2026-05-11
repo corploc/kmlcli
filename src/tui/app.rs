@@ -407,7 +407,7 @@ impl App {
         let doc_name = self.doc.name.as_deref().unwrap_or("untitled");
         let zoom = self.viewport.zoom_level();
         let status_text = format!(
-            " {doc_name} | z{zoom} | [q]uit [t]ree [arrows]tree [hjkl]pan [+/-]zoom [scroll]pan [shift+scroll]h-pan [ctrl+shift+scroll]zoom"
+            " {doc_name} | z{zoom} | [q]uit [t]ree [arrows]tree [hjkl]pan [+/-]zoom [scroll]pan [shift+scroll]h-pan [ctrl+scroll]zoom"
         );
         let status =
             Paragraph::new(Span::raw(status_text)).style(Style::default().fg(Color::DarkGray));
