@@ -41,14 +41,13 @@ impl Viewport {
     }
 
     pub fn y_bounds(&self) -> [f64; 2] {
-        [
-            mercator_y(self.center_lat - self.half_lat),
-            mercator_y(self.center_lat + self.half_lat),
-        ]
+        let min_lat = (self.center_lat - self.half_lat).max(-85.05);
+        let max_lat = (self.center_lat + self.half_lat).min(85.05);
+        [mercator_y(min_lat), mercator_y(max_lat)]
     }
 
     pub fn project_for_canvas(&self, coord: &Coord) -> (f64, f64) {
-        (coord.lon, mercator_y(coord.lat))
+        (coord.lon, mercator_y(coord.lat.clamp(-85.05, 85.05)))
     }
 
     pub fn lon_span(&self) -> f64 {
