@@ -283,7 +283,7 @@ impl App {
     }
 
     fn prefetch_visible_tiles(&self) {
-        let zoom = self.viewport.zoom_level().min(16);
+        let zoom = self.viewport.zoom_level().min(14);
         let x_bounds = self.viewport.x_bounds();
         let lat_bounds = self.viewport.lat_bounds();
         let tiles = crate::tiles::math::visible_tiles(

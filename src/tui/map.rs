@@ -47,7 +47,7 @@ impl<'a> MapView<'a> {
         let t0 = std::time::Instant::now();
 
         // Collect tile background segments + labels
-        let zoom = self.viewport.zoom_level().min(16);
+        let zoom = self.viewport.zoom_level().min(14);
         let lat_bounds = self.viewport.lat_bounds();
         let visible =
             math::visible_tiles(lat_bounds[0], lat_bounds[1], x_bounds[0], x_bounds[1], zoom);
