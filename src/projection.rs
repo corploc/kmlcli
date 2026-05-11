@@ -84,6 +84,20 @@ impl Viewport {
             && bbox.max_lat >= self.center_lat - self.half_lat
             && bbox.min_lat <= self.center_lat + self.half_lat
     }
+
+    /// Compute the OSM zoom level (0-18) matching the current viewport span.
+    pub fn zoom_level(&self) -> u32 {
+        let z = (360.0 / (self.half_lon * 2.0)).log2();
+        z.round().clamp(0.0, 18.0) as u32
+    }
+
+    /// Returns lat bounds (not mercator-projected).
+    pub fn lat_bounds(&self) -> [f64; 2] {
+        [
+            self.center_lat - self.half_lat,
+            self.center_lat + self.half_lat,
+        ]
+    }
 }
 
 fn mercator_y(lat: f64) -> f64 {
