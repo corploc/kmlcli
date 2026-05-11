@@ -1,3 +1,5 @@
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use color_eyre::eyre::Result;
@@ -78,6 +80,26 @@ impl App {
     }
 
     pub fn run(mut self) -> Result<()> {
+        // Install panic hook to restore terminal on crash
+        let original_hook = std::panic::take_hook();
+        std::panic::set_hook(Box::new(move |info| {
+            let _ = disable_raw_mode();
+            let _ = execute!(std::io::stderr(), LeaveAlternateScreen, DisableMouseCapture);
+            original_hook(info);
+        }));
+
+        // Signal handler for Ctrl-C (works even if crossterm misses it)
+        let should_quit = Arc::new(AtomicBool::new(false));
+        {
+            let quit = should_quit.clone();
+            let _ = ctrlc::set_handler(move || {
+                quit.store(true, Ordering::Relaxed);
+                // Force restore terminal in case we're stuck
+                let _ = disable_raw_mode();
+                let _ = execute!(std::io::stderr(), LeaveAlternateScreen, DisableMouseCapture);
+            });
+        }
+
         enable_raw_mode()?;
         let mut stderr = std::io::stderr();
         execute!(stderr, EnterAlternateScreen, EnableMouseCapture)?;
@@ -85,7 +107,7 @@ impl App {
         let backend = ratatui::backend::CrosstermBackend::new(stderr);
         let mut terminal = ratatui::Terminal::new(backend)?;
 
-        let result = self.event_loop(&mut terminal);
+        let result = self.event_loop(&mut terminal, &should_quit);
 
         disable_raw_mode()?;
         execute!(
@@ -101,9 +123,14 @@ impl App {
     fn event_loop(
         &mut self,
         terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stderr>>,
+        signal_quit: &Arc<AtomicBool>,
     ) -> Result<()> {
         loop {
             terminal.draw(|f| self.draw(f))?;
+
+            if signal_quit.load(Ordering::Relaxed) || self.should_quit {
+                break;
+            }
 
             if event::poll(Duration::from_millis(16))? {
                 match event::read()? {
@@ -115,12 +142,12 @@ impl App {
                         let action = handle_mouse(mouse);
                         self.handle_action(action);
                     }
+                    Event::FocusGained => {
+                        // Re-enable raw mode in case terminal lost state
+                        let _ = enable_raw_mode();
+                    }
                     _ => {}
                 }
-            }
-
-            if self.should_quit {
-                break;
             }
         }
         Ok(())

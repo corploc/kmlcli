@@ -13,6 +13,7 @@ use super::render::RenderedTile;
 
 const TILEJSON_URL: &str = "https://tiles.openfreemap.org/planet";
 const CACHE_SIZE: usize = 64;
+const WORKER_COUNT: usize = 4;
 
 pub struct TileCache {
     cache: Arc<Mutex<LruCache<TileCoord, RenderedTile>>>,
@@ -27,71 +28,131 @@ impl TileCache {
 
         let client = reqwest::blocking::Client::builder()
             .user_agent("kmlcli/0.1")
+            .timeout(std::time::Duration::from_secs(10))
             .build()
             .expect("Failed to build HTTP client");
 
         let (prefetch_tx, prefetch_rx) = mpsc::channel::<Vec<TileCoord>>();
+        let prefetch_rx = Arc::new(Mutex::new(prefetch_rx));
 
-        // Single persistent worker thread
+        // Resolve tile URL template synchronously before spawning workers
+        // (done in a dedicated thread to not block app startup)
+        let url_template: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
+        {
+            let template = url_template.clone();
+            let c = client.clone();
+            std::thread::spawn(move || {
+                if let Some(url) = resolve_tile_url(&c) {
+                    *template.lock().unwrap() = Some(url);
+                }
+            });
+        }
+
+        // Dispatch thread: receives batches, fans out individual tiles to workers
+        let (tile_tx, tile_rx) = mpsc::channel::<TileCoord>();
+        let tile_rx = Arc::new(Mutex::new(tile_rx));
+
         {
             let cache = cache.clone();
-            let client = client.clone();
+            let url_template = url_template.clone();
             std::thread::spawn(move || {
-                // Resolve tile URL template first
-                let url_template = loop {
-                    if let Some(url) = resolve_tile_url(&client) {
-                        break url;
-                    }
-                    std::thread::sleep(std::time::Duration::from_secs(1));
-                };
-
-                // Process prefetch requests
-                while let Ok(coords) = prefetch_rx.recv() {
-                    // Drain queued requests — only process the latest batch
+                let rx = prefetch_rx;
+                loop {
                     let coords = {
+                        let rx = rx.lock().unwrap();
+                        match rx.recv() {
+                            Ok(c) => c,
+                            Err(_) => return,
+                        }
+                    };
+                    // Drain to latest batch
+                    let coords = {
+                        let rx = rx.lock().unwrap();
                         let mut latest = coords;
-                        while let Ok(newer) = prefetch_rx.try_recv() {
+                        while let Ok(newer) = rx.try_recv() {
                             latest = newer;
                         }
                         latest
                     };
 
+                    // Wait for URL template
+                    let has_template = url_template.lock().unwrap().is_some();
+                    if !has_template {
+                        continue;
+                    }
+
                     for coord in coords {
-                        {
-                            let cache_lock = cache.lock().unwrap();
-                            if cache_lock.contains(&coord) {
-                                continue;
-                            }
+                        let already_cached = {
+                            let c = cache.lock().unwrap();
+                            c.contains(&coord)
+                        };
+                        if !already_cached {
+                            let _ = tile_tx.send(coord);
                         }
+                    }
+                }
+            });
+        }
 
-                        let url = url_template
-                            .replace("{z}", &coord.z.to_string())
-                            .replace("{x}", &coord.x.to_string())
-                            .replace("{y}", &coord.y.to_string());
+        // Worker threads: fetch individual tiles in parallel
+        for _ in 0..WORKER_COUNT {
+            let tile_rx = tile_rx.clone();
+            let cache = cache.clone();
+            let client = client.clone();
+            let url_template = url_template.clone();
 
-                        if let Ok(response) = client.get(&url).send() {
-                            if response.status().is_success() {
-                                if let Ok(bytes) = response.bytes() {
-                                    if bytes.is_empty() {
-                                        let mut cache_lock = cache.lock().unwrap();
-                                        cache_lock.put(
-                                            coord,
-                                            RenderedTile {
-                                                segments: Vec::new(),
-                                                labels: Vec::new(),
-                                            },
-                                        );
-                                        continue;
+            std::thread::spawn(move || {
+                loop {
+                    let coord = {
+                        let rx = tile_rx.lock().unwrap();
+                        match rx.recv() {
+                            Ok(c) => c,
+                            Err(_) => return,
+                        }
+                    };
+
+                    // Skip if already cached (another worker might have fetched it)
+                    {
+                        let c = cache.lock().unwrap();
+                        if c.contains(&coord) {
+                            continue;
+                        }
+                    }
+
+                    let tmpl = {
+                        let t = url_template.lock().unwrap();
+                        match t.as_ref() {
+                            Some(u) => u.clone(),
+                            None => continue,
+                        }
+                    };
+
+                    let url = tmpl
+                        .replace("{z}", &coord.z.to_string())
+                        .replace("{x}", &coord.x.to_string())
+                        .replace("{y}", &coord.y.to_string());
+
+                    if let Ok(response) = client.get(&url).send() {
+                        if response.status().is_success() {
+                            if let Ok(bytes) = response.bytes() {
+                                let rendered = if bytes.is_empty() {
+                                    RenderedTile {
+                                        segments: Vec::new(),
+                                        labels: Vec::new(),
                                     }
+                                } else {
                                     let decompressed =
                                         decompress_gzip(&bytes).unwrap_or_else(|| bytes.to_vec());
-                                    if let Ok(tile) = Tile::decode(decompressed.as_slice()) {
-                                        let features = decode_tile(&tile, &coord);
-                                        let rendered = super::render::prerender_tile(&features);
-                                        let mut cache_lock = cache.lock().unwrap();
-                                        cache_lock.put(coord, rendered);
+                                    match Tile::decode(decompressed.as_slice()) {
+                                        Ok(tile) => {
+                                            let features = decode_tile(&tile, &coord);
+                                            super::render::prerender_tile(&features)
+                                        }
+                                        Err(_) => continue,
                                     }
-                                }
+                                };
+                                let mut cache_lock = cache.lock().unwrap();
+                                cache_lock.put(coord, rendered);
                             }
                         }
                     }
