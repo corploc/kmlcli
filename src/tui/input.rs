@@ -27,14 +27,20 @@ pub fn handle_key(key: KeyEvent) -> Action {
         KeyCode::Char('q') => Action::Quit,
         KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => Action::Quit,
 
-        // Tree navigation — always available
-        KeyCode::Char('j') | KeyCode::Down => Action::MoveDown,
-        KeyCode::Char('k') | KeyCode::Up => Action::MoveUp,
+        // Tree navigation — arrow keys
+        KeyCode::Up => Action::MoveUp,
+        KeyCode::Down => Action::MoveDown,
         KeyCode::Enter => Action::ToggleExpand,
 
-        // Map controls — always available
-        KeyCode::Char('h') | KeyCode::Left => Action::PanLeft,
-        KeyCode::Char('l') | KeyCode::Right => Action::PanRight,
+        // Map pan — hjkl (vim-style)
+        KeyCode::Char('h') => Action::PanLeft,
+        KeyCode::Char('j') => Action::PanDown,
+        KeyCode::Char('k') => Action::PanUp,
+        KeyCode::Char('l') => Action::PanRight,
+        KeyCode::Left => Action::PanLeft,
+        KeyCode::Right => Action::PanRight,
+
+        // Map zoom
         KeyCode::Char('+') | KeyCode::Char('=') => Action::ZoomIn,
         KeyCode::Char('-') => Action::ZoomOut,
 
