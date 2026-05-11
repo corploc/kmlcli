@@ -17,6 +17,7 @@ use ratatui::{
 use crate::{
     model::{Feature, Geometry, KmlDocument},
     projection::Viewport,
+    tiles::fetch::TileCache,
     tui::{
         details::DetailsView,
         input::{handle_key, Action, Focus},
@@ -43,6 +44,7 @@ pub struct App {
     tree_items: Vec<TreeItem>,
     tree_scroll: usize,
     should_quit: bool,
+    tile_cache: TileCache,
 }
 
 impl App {
@@ -60,8 +62,9 @@ impl App {
             });
 
         let tree_items = build_tree_items(&doc.features, 0, &[]);
+        let tile_cache = TileCache::new();
 
-        Self {
+        let app = Self {
             doc,
             viewport,
             focus: Focus::Tree,
@@ -69,7 +72,10 @@ impl App {
             tree_items,
             tree_scroll: 0,
             should_quit: false,
-        }
+            tile_cache,
+        };
+        app.prefetch_visible_tiles();
+        app
     }
 
     pub fn run(mut self) -> Result<()> {
@@ -159,16 +165,35 @@ impl App {
                         // Leaf: center viewport on first coord
                         if let Some(coord) = self.first_coord_of_selected() {
                             self.viewport.center_on(&coord);
+                            self.prefetch_visible_tiles();
                         }
                     }
                 }
             }
-            Action::ZoomIn => self.viewport.zoom_in(),
-            Action::ZoomOut => self.viewport.zoom_out(),
-            Action::PanLeft => self.viewport.pan_left(),
-            Action::PanRight => self.viewport.pan_right(),
-            Action::PanUp => self.viewport.pan_up(),
-            Action::PanDown => self.viewport.pan_down(),
+            Action::ZoomIn => {
+                self.viewport.zoom_in();
+                self.prefetch_visible_tiles();
+            }
+            Action::ZoomOut => {
+                self.viewport.zoom_out();
+                self.prefetch_visible_tiles();
+            }
+            Action::PanLeft => {
+                self.viewport.pan_left();
+                self.prefetch_visible_tiles();
+            }
+            Action::PanRight => {
+                self.viewport.pan_right();
+                self.prefetch_visible_tiles();
+            }
+            Action::PanUp => {
+                self.viewport.pan_up();
+                self.prefetch_visible_tiles();
+            }
+            Action::PanDown => {
+                self.viewport.pan_down();
+                self.prefetch_visible_tiles();
+            }
             Action::Search | Action::None => {}
         }
     }
@@ -200,6 +225,20 @@ impl App {
             } => first_coord(geom),
             _ => None,
         }
+    }
+
+    fn prefetch_visible_tiles(&self) {
+        let zoom = self.viewport.zoom_level().min(16);
+        let x_bounds = self.viewport.x_bounds();
+        let lat_bounds = self.viewport.lat_bounds();
+        let tiles = crate::tiles::math::visible_tiles(
+            lat_bounds[0],
+            lat_bounds[1],
+            x_bounds[0],
+            x_bounds[1],
+            zoom,
+        );
+        self.tile_cache.prefetch(tiles);
     }
 
     fn visible_indices(&self) -> Vec<usize> {
@@ -313,11 +352,18 @@ impl App {
                 &self.viewport,
                 selected_path,
                 self.focus == Focus::Map,
+                &self.tile_cache,
             );
             f.render_widget(map_view.widget(), map_area);
         } else {
             // Degraded: map only
-            let map_view = MapView::new(&self.doc, &self.viewport, selected_path, true);
+            let map_view = MapView::new(
+                &self.doc,
+                &self.viewport,
+                selected_path,
+                true,
+                &self.tile_cache,
+            );
             f.render_widget(map_view.widget(), body_area);
         }
 
@@ -331,8 +377,9 @@ impl App {
             Focus::Map => "MAP",
         };
         let doc_name = self.doc.name.as_deref().unwrap_or("untitled");
+        let zoom = self.viewport.zoom_level();
         let status_text = format!(
-            " {doc_name} | [{focus_label}] | [q]uit [tab]focus [j/k]nav [+/-]zoom [hjkl]pan"
+            " {doc_name} | [{focus_label}] | z{zoom} | [q]uit [tab]focus [j/k]nav [+/-]zoom [hjkl]pan"
         );
         let status =
             Paragraph::new(Span::raw(status_text)).style(Style::default().fg(Color::DarkGray));

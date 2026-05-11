@@ -10,6 +10,7 @@ use ratatui::{
 use crate::{
     model::{Geometry, KmlDocument},
     projection::Viewport,
+    tiles::{fetch::TileCache, math, render::render_tile_features},
 };
 
 pub struct MapView<'a> {
@@ -17,6 +18,7 @@ pub struct MapView<'a> {
     pub viewport: &'a Viewport,
     pub selected_path: Option<&'a [usize]>,
     pub focused: bool,
+    pub tile_cache: &'a TileCache,
 }
 
 impl<'a> MapView<'a> {
@@ -25,12 +27,14 @@ impl<'a> MapView<'a> {
         viewport: &'a Viewport,
         selected_path: Option<&'a [usize]>,
         focused: bool,
+        tile_cache: &'a TileCache,
     ) -> Self {
         Self {
             doc,
             viewport,
             selected_path,
             focused,
+            tile_cache,
         }
     }
 
@@ -49,10 +53,25 @@ impl<'a> MapView<'a> {
             .title("Map")
             .border_style(border_style);
 
-        // Collect geometry segments to draw
-        // We snapshot what we need so the closure can own it
+        // Collect tile background segments
+        let zoom = self.viewport.zoom_level().min(16);
+        let lat_bounds = self.viewport.lat_bounds();
+        let visible =
+            math::visible_tiles(lat_bounds[0], lat_bounds[1], x_bounds[0], x_bounds[1], zoom);
+        // Cap tile count to avoid rendering too many
+        let visible: Vec<_> = visible.into_iter().take(16).collect();
+
+        let mut tile_segments = Vec::new();
+        for tc in &visible {
+            if let Some(features) = self.tile_cache.get_cached(tc) {
+                let segs = render_tile_features(&features, self.viewport);
+                tile_segments.extend(segs);
+            }
+        }
+
+        // Collect KML foreground segments
         let selected_path = self.selected_path.map(|p| p.to_vec());
-        let segments = collect_segments(self.doc, self.viewport, &selected_path);
+        let kml_segments = collect_segments(self.doc, self.viewport, &selected_path);
 
         Canvas::default()
             .block(block)
@@ -60,7 +79,19 @@ impl<'a> MapView<'a> {
             .y_bounds(y_bounds)
             .marker(Marker::Braille)
             .paint(move |ctx| {
-                for seg in &segments {
+                // Background: tile map
+                for seg in &tile_segments {
+                    ctx.draw(&CanvasLine {
+                        x1: seg.x1,
+                        y1: seg.y1,
+                        x2: seg.x2,
+                        y2: seg.y2,
+                        color: seg.color,
+                    });
+                }
+
+                // Foreground: KML data
+                for seg in &kml_segments {
                     match seg {
                         DrawCmd::Line {
                             x1,
@@ -138,7 +169,7 @@ fn collect_feature_segments(
                 let color = if is_selected {
                     Color::Yellow
                 } else {
-                    Color::DarkGray
+                    Color::White
                 };
                 collect_geom_segments(geom, viewport, color, cmds);
             }
