@@ -50,7 +50,10 @@ impl<'a> MapView<'a> {
         let lat_bounds = self.viewport.lat_bounds();
         let visible =
             math::visible_tiles(lat_bounds[0], lat_bounds[1], x_bounds[0], x_bounds[1], zoom);
-        let visible: Vec<_> = visible.into_iter().take(16).collect();
+        let visible: Vec<_> = visible
+            .into_iter()
+            .take(math::MAX_VISIBLE_TILES)
+            .collect();
 
         // Min segment length in viewport space — skip segments smaller than ~1 braille cell
         let vp_width = x_bounds[1] - x_bounds[0];

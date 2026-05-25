@@ -262,13 +262,14 @@ impl App {
         let zoom = self.viewport.zoom_level().min(14);
         let x_bounds = self.viewport.x_bounds();
         let lat_bounds = self.viewport.lat_bounds();
-        let tiles = crate::tiles::math::visible_tiles(
+        let mut tiles = crate::tiles::math::visible_tiles(
             lat_bounds[0],
             lat_bounds[1],
             x_bounds[0],
             x_bounds[1],
             zoom,
         );
+        tiles.truncate(crate::tiles::math::MAX_VISIBLE_TILES);
         self.tile_cache.prefetch(tiles);
     }
 

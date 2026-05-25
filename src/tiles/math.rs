@@ -1,5 +1,9 @@
 use std::f64::consts::PI;
 
+/// Maximum number of tiles to fetch/render per frame.
+/// Beyond this, the map degrades to partial rendering — better than blocking on HTTP fanout.
+pub const MAX_VISIBLE_TILES: usize = 16;
+
 pub fn ll2tile(lat: f64, lon: f64, zoom: u32) -> (u32, u32) {
     let n = 2.0_f64.powi(zoom as i32);
     let x = ((lon + 180.0) / 360.0 * n).floor() as u32;
