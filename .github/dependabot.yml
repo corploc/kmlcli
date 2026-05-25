@@ -10,6 +10,10 @@ updates:
         update-types: ["patch"]
       minor:
         update-types: ["minor"]
+      tui:
+        patterns:
+          - "ratatui"
+          - "crossterm"
 
   - package-ecosystem: github-actions
     directory: "/"
