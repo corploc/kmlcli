@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/corploc/kmlcli/compare/v0.1.1...v0.2.0) (2026-05-25)
+
+
+### Features
+
+* shell completions subcommand + declare MSRV 1.85 ([3b92217](https://github.com/corploc/kmlcli/commit/3b922170b7fc054e2c7572be679f169db000480e))
+
 ## [0.1.1](https://github.com/corploc/kmlcli/compare/v0.1.0...v0.1.1) (2026-05-25)
 
 
