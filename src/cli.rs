@@ -1,4 +1,6 @@
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
+use clap_complete::{generate, Shell};
+use std::io;
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
@@ -28,6 +30,8 @@ pub enum Command {
     },
     /// Print document structure as a tree
     Tree { file: PathBuf },
+    /// Generate shell completions
+    Completions { shell: Shell },
 }
 
 #[derive(ValueEnum, Debug, Clone)]
@@ -43,7 +47,14 @@ impl Cli {
             Some(Command::Info { file, .. }) => Some(file),
             Some(Command::List { file, .. }) => Some(file),
             Some(Command::Tree { file }) => Some(file),
+            Some(Command::Completions { .. }) => None,
             None => self.file.as_ref(),
         }
     }
+}
+
+pub fn print_completions(shell: Shell) {
+    let mut cmd = Cli::command();
+    let name = cmd.get_name().to_string();
+    generate(shell, &mut cmd, name, &mut io::stdout());
 }

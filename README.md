@@ -48,6 +48,19 @@ kmlcli list file.kml          # all placemarks/folders (JSON)
 kmlcli tree file.kml          # structure tree
 ```
 
+## Shell completions
+
+```bash
+# fish
+kmlcli completions fish > ~/.config/fish/completions/kmlcli.fish
+
+# bash
+kmlcli completions bash > ~/.local/share/bash-completion/completions/kmlcli
+
+# zsh
+kmlcli completions zsh > ~/.zsh/completions/_kmlcli
+```
+
 ## Controls
 
 | Key | Action |
