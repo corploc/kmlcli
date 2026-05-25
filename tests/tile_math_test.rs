@@ -1,4 +1,4 @@
-use kmlcli::tiles::math::{TileCoord, ll2tile, tile2ll, visible_tiles};
+use kmlcli::tiles::math::{ll2tile, tile2ll, visible_tiles, TileCoord};
 
 #[test]
 fn test_ll2tile_zoom_0() {
@@ -29,6 +29,20 @@ fn test_visible_tiles_returns_nonempty() {
     assert!(!tiles.is_empty());
     assert!(tiles.len() > 1);
     assert!(tiles.len() < 100);
+}
+
+#[test]
+fn ll2tile_handles_north_pole() {
+    let (_x, y) = ll2tile(89.99, 0.0, 5);
+    assert!(y < 32, "y={y} out of range for z=5");
+}
+
+#[test]
+fn ll2tile_handles_south_pole() {
+    let (_x, y) = ll2tile(-89.99, 0.0, 5);
+    assert!(y < 32, "y={y} out of range for z=5");
+    // Should land at the bottom row, not silently wrap.
+    assert_eq!(y, 31, "south pole should map to bottom tile row");
 }
 
 #[test]

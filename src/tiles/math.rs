@@ -5,6 +5,10 @@ use std::f64::consts::PI;
 pub const MAX_VISIBLE_TILES: usize = 16;
 
 pub fn ll2tile(lat: f64, lon: f64, zoom: u32) -> (u32, u32) {
+    // Clamp latitude to the Web Mercator valid range; beyond this the
+    // projection diverges and y casts produce garbage values that the
+    // downstream .min(max_tile) only partially papers over.
+    let lat = lat.clamp(-85.05112878, 85.05112878);
     let n = 2.0_f64.powi(zoom as i32);
     let x = ((lon + 180.0) / 360.0 * n).floor() as u32;
     let lat_rad = lat.to_radians();
