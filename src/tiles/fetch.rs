@@ -81,9 +81,10 @@ impl TileCache {
                         latest
                     };
 
-                    // Wait for URL template
+                    // Wait for URL template (resolved by separate thread at startup)
                     let has_template = url_template.lock().unwrap().is_some();
                     if !has_template {
+                        std::thread::sleep(std::time::Duration::from_millis(50));
                         continue;
                     }
 
