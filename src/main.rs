@@ -22,6 +22,11 @@ fn main() -> Result<()> {
         Some(cli::Command::List { .. }) => kmlcli::commands::list::run(&doc)?,
         Some(cli::Command::Tree { .. }) => kmlcli::commands::tree::run(&doc),
         _ => {
+            // Install panic hook before constructing App: tile worker threads
+            // are spawned inside App::new and a panic there must still restore
+            // the terminal (even though raw mode isn't enabled yet, the hook
+            // becomes effective as soon as App::run() enables it).
+            kmlcli::tui::app::install_panic_hook();
             kmlcli::tui::app::App::new(doc)?.run()?;
         }
     }
