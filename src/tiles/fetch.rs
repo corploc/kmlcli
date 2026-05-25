@@ -33,7 +33,7 @@ impl TileCache {
         )));
 
         let client = reqwest::blocking::Client::builder()
-            .user_agent("kmlcli/0.1")
+            .user_agent(concat!("kmlcli/", env!("CARGO_PKG_VERSION")))
             .timeout(std::time::Duration::from_secs(10))
             .build()
             .expect("Failed to build HTTP client");
