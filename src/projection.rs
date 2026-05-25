@@ -68,10 +68,10 @@ impl Viewport {
         self.center_lon += self.half_lon * PAN_FACTOR;
     }
     pub fn pan_up(&mut self) {
-        self.center_lat += self.half_lat * PAN_FACTOR;
+        self.center_lat = (self.center_lat + self.half_lat * PAN_FACTOR).min(85.05);
     }
     pub fn pan_down(&mut self) {
-        self.center_lat -= self.half_lat * PAN_FACTOR;
+        self.center_lat = (self.center_lat - self.half_lat * PAN_FACTOR).max(-85.05);
     }
     pub fn center_on(&mut self, coord: &Coord) {
         self.center_lon = coord.lon;

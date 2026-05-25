@@ -59,6 +59,44 @@ fn test_zoom_in_narrows_bounds() {
 }
 
 #[test]
+fn pan_up_clamps_to_mercator_max() {
+    let bbox = BoundingBox {
+        min_lon: 0.0,
+        max_lon: 1.0,
+        min_lat: 84.0,
+        max_lat: 85.0,
+    };
+    let mut vp = Viewport::from_bbox(&bbox);
+    for _ in 0..1000 {
+        vp.pan_up();
+    }
+    assert!(
+        vp.center_lat <= 85.05,
+        "center_lat = {} exceeded 85.05",
+        vp.center_lat
+    );
+}
+
+#[test]
+fn pan_down_clamps_to_mercator_min() {
+    let bbox = BoundingBox {
+        min_lon: 0.0,
+        max_lon: 1.0,
+        min_lat: -85.0,
+        max_lat: -84.0,
+    };
+    let mut vp = Viewport::from_bbox(&bbox);
+    for _ in 0..1000 {
+        vp.pan_down();
+    }
+    assert!(
+        vp.center_lat >= -85.05,
+        "center_lat = {} below -85.05",
+        vp.center_lat
+    );
+}
+
+#[test]
 fn test_pan_shifts_center() {
     let bbox = BoundingBox {
         min_lon: 0.0,
