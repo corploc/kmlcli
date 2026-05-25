@@ -50,6 +50,18 @@ pub struct App {
     tree_visible_rows: usize,
 }
 
+/// Install a panic hook that restores the terminal (disable raw mode, leave alternate
+/// screen) before delegating to the previous hook. Call this BEFORE constructing `App`,
+/// because `App::new` spawns tile worker threads that could panic.
+pub fn install_panic_hook() {
+    let original_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let _ = disable_raw_mode();
+        let _ = execute!(std::io::stderr(), LeaveAlternateScreen, DisableMouseCapture);
+        original_hook(info);
+    }));
+}
+
 impl App {
     pub fn new(doc: KmlDocument) -> Result<Self> {
         let viewport = doc
@@ -83,14 +95,6 @@ impl App {
     }
 
     pub fn run(mut self) -> Result<()> {
-        // Install panic hook to restore terminal on crash
-        let original_hook = std::panic::take_hook();
-        std::panic::set_hook(Box::new(move |info| {
-            let _ = disable_raw_mode();
-            let _ = execute!(std::io::stderr(), LeaveAlternateScreen, DisableMouseCapture);
-            original_hook(info);
-        }));
-
         // Signal handler for Ctrl-C (works even if crossterm misses it)
         let should_quit = Arc::new(AtomicBool::new(false));
         {
