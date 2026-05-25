@@ -49,7 +49,7 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(doc: KmlDocument) -> Self {
+    pub fn new(doc: KmlDocument) -> Result<Self> {
         let viewport = doc
             .bounding_box()
             .map(|bb| Viewport::from_bbox(&bb))
@@ -63,7 +63,7 @@ impl App {
             });
 
         let tree_items = build_tree_items(&doc.features, 0, &[]);
-        let tile_cache = TileCache::new();
+        let tile_cache = TileCache::new()?;
 
         let app = Self {
             doc,
@@ -76,7 +76,7 @@ impl App {
             show_tree: true,
         };
         app.prefetch_visible_tiles();
-        app
+        Ok(app)
     }
 
     pub fn run(mut self) -> Result<()> {
