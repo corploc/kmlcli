@@ -1,4 +1,4 @@
-use kmlcli::tiles::math::{ll2tile, tile2ll, visible_tiles, TileCoord};
+use kmlcli::tiles::math::{TileCoord, ll2tile, tile2ll, visible_tiles};
 
 #[test]
 fn test_ll2tile_zoom_0() {
