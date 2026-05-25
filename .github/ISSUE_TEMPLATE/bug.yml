@@ -1,0 +1,45 @@
+name: Bug report
+description: Something doesn't work as expected
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the bug and what you expected instead
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Run `kmlcli file.kml`
+        2. Press X
+        3. Observe Y
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: kmlcli version
+      description: Output of `kmlcli --version`
+    validations:
+      required: true
+
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      description: OS, terminal emulator, shell
+      placeholder: "Linux, kitty, fish"
+    validations:
+      required: true
+
+  - type: textarea
+    id: file
+    attributes:
+      label: KML/KMZ file (if applicable)
+      description: Attach or paste a minimal KML/KMZ that triggers the bug

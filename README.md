@@ -1,8 +1,15 @@
 # kmlcli
 
+[![CI](https://github.com/corploc/kmlcli/actions/workflows/ci.yml/badge.svg)](https://github.com/corploc/kmlcli/actions/workflows/ci.yml)
+[![Release](https://github.com/corploc/kmlcli/actions/workflows/release.yml/badge.svg)](https://github.com/corploc/kmlcli/actions/workflows/release.yml)
+[![crates.io](https://img.shields.io/crates/v/kmlcli.svg)](https://crates.io/crates/kmlcli)
+[![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
+
 KML/KMZ viewer in the terminal. Full TUI with braille map rendering, OpenStreetMap tile background, and interactive navigation.
 
 No equivalent tool exists.
+
+![demo](docs/demo.gif)
 
 ## Features
 
@@ -16,10 +23,17 @@ No equivalent tool exists.
 ## Install
 
 ```bash
-cargo install --path .
+cargo install kmlcli
 ```
 
-Or grab a binary from [releases](https://github.com/corploc/kmlcli/releases).
+Or grab a prebuilt binary from [releases](https://github.com/corploc/kmlcli/releases).
+
+From source:
+
+```bash
+git clone git@github.com:corploc/kmlcli.git
+cd kmlcli && cargo install --path .
+```
 
 ## Usage
 

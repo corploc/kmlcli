@@ -94,3 +94,12 @@ jobs:
         run: |
           gh release upload ${{ needs.release-please.outputs.tag_name }} artifacts/* \
             --repo ${{ github.repository }}
+
+  publish-crate:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
