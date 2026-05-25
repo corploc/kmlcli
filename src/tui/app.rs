@@ -1,19 +1,19 @@
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use color_eyre::eyre::Result;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event},
     execute,
-    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{
-    Frame,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Style},
     text::Span,
     widgets::{Block, Borders, Clear, Paragraph},
+    Frame,
 };
 
 use crate::{
@@ -21,9 +21,9 @@ use crate::{
     projection::Viewport,
     tiles::fetch::TileCache,
     tui::{
-        input::{Action, handle_key, handle_mouse},
+        input::{handle_key, handle_mouse, Action},
         map::MapView,
-        tree::{TreeView, TreeViewItem, kind_to_icon},
+        tree::{kind_to_icon, TreeView, TreeViewItem},
     },
 };
 
@@ -125,32 +125,8 @@ impl App {
         terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stderr>>,
         signal_quit: &Arc<AtomicBool>,
     ) -> Result<()> {
-        use std::io::Write;
-        let mut perf_log = std::fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .truncate(true)
-            .open("/tmp/kmlcli_perf.log")
-            .ok();
-        let mut frame_count: u64 = 0;
-
         loop {
-            let frame_start = std::time::Instant::now();
             terminal.draw(|f| self.draw(f))?;
-            let draw_elapsed = frame_start.elapsed();
-
-            frame_count += 1;
-            if frame_count.is_multiple_of(30)
-                && let Some(ref mut log) = perf_log
-            {
-                let _ = writeln!(
-                    log,
-                    "frame={} draw={:.1}ms",
-                    frame_count,
-                    draw_elapsed.as_secs_f64() * 1000.0,
-                );
-                let _ = log.flush();
-            }
 
             if signal_quit.load(Ordering::Relaxed) || self.should_quit {
                 break;
