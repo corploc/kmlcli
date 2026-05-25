@@ -1,5 +1,5 @@
 use clap::Parser;
-use color_eyre::eyre::{eyre, Result};
+use color_eyre::eyre::{Result, eyre};
 
 mod cli;
 
