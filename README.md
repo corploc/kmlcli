@@ -19,7 +19,7 @@ No equivalent tool exists.
 cargo install --path .
 ```
 
-Or grab a binary from [releases](https://github.com/hokanosekai/kmlcli/releases).
+Or grab a binary from [releases](https://github.com/corploc/kmlcli/releases).
 
 ## Usage
 
