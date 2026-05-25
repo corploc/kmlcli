@@ -46,6 +46,8 @@ pub struct App {
     should_quit: bool,
     tile_cache: TileCache,
     show_tree: bool,
+    /// Updated at each render. Fallback (20) is used before the first frame.
+    tree_visible_rows: usize,
 }
 
 impl App {
@@ -74,6 +76,7 @@ impl App {
             should_quit: false,
             tile_cache,
             show_tree: true,
+            tree_visible_rows: 20,
         };
         app.prefetch_visible_tiles();
         Ok(app)
@@ -164,8 +167,9 @@ impl App {
                     if pos + 1 < visible.len() {
                         self.selected = visible[pos + 1];
                         let new_pos = pos + 1;
-                        if new_pos >= self.tree_scroll + 20 {
-                            self.tree_scroll = new_pos.saturating_sub(19);
+                        let visible = self.tree_visible_rows.max(1);
+                        if new_pos >= self.tree_scroll + visible {
+                            self.tree_scroll = new_pos.saturating_sub(visible - 1);
                         }
                     }
                 } else if !visible.is_empty() {
@@ -292,7 +296,7 @@ impl App {
         visible
     }
 
-    fn draw(&self, f: &mut Frame) {
+    fn draw(&mut self, f: &mut Frame) {
         let area = f.area();
 
         if area.width < 40 || area.height < 10 {
@@ -335,6 +339,8 @@ impl App {
             // Size the panel to fit content, with limits
             let panel_width = (area.width / 3).clamp(25, 50);
             let panel_height = (item_count as u16 + 2).clamp(4, area.height.saturating_sub(4));
+            // Track usable content rows (panel - 2 borders) so scroll math matches reality.
+            self.tree_visible_rows = panel_height.saturating_sub(2).max(1) as usize;
 
             let tree_area = Rect {
                 x: 1,
