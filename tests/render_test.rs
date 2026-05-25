@@ -1,6 +1,6 @@
 use kmlcli::tiles::decode::DecodedFeature;
 use kmlcli::tiles::proto::GeomType;
-use kmlcli::tiles::render::{dedup_labels, prerender_tile, TileLabel};
+use kmlcli::tiles::render::{TileLabel, dedup_labels, prerender_tile};
 use std::collections::HashMap;
 
 fn make_feature(
