@@ -31,6 +31,15 @@ fn test_parse_nonexistent_file() {
 }
 
 #[test]
+fn style_map_resolves_to_normal_style() {
+    let doc = parse_file(Path::new("tests/fixtures/style_map.kml")).unwrap();
+    // The StyleMap "redMap" should resolve to its "normal" target, "redStyle"
+    let style = doc.resolve_style("redMap").expect("redMap resolved");
+    assert_eq!(style.line_color.as_deref(), Some("ff0000ff"));
+    assert_eq!(style.line_width, Some(2.0));
+}
+
+#[test]
 #[ignore]
 fn test_parse_real_kml_file() {
     if let Ok(path) = std::env::var("KML_TEST_FILE") {
