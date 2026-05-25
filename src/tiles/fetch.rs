@@ -20,14 +20,8 @@ pub struct TileCache {
     prefetch_tx: mpsc::Sender<Vec<TileCoord>>,
 }
 
-impl Default for TileCache {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl TileCache {
-    pub fn new() -> Self {
+    pub fn new() -> color_eyre::Result<Self> {
         let cache = Arc::new(Mutex::new(LruCache::new(
             NonZeroUsize::new(CACHE_SIZE).unwrap(),
         )));
@@ -35,8 +29,7 @@ impl TileCache {
         let client = reqwest::blocking::Client::builder()
             .user_agent(concat!("kmlcli/", env!("CARGO_PKG_VERSION")))
             .timeout(std::time::Duration::from_secs(10))
-            .build()
-            .expect("Failed to build HTTP client");
+            .build()?;
 
         let (prefetch_tx, prefetch_rx) = mpsc::channel::<Vec<TileCoord>>();
         let prefetch_rx = Arc::new(Mutex::new(prefetch_rx));
@@ -166,7 +159,7 @@ impl TileCache {
             });
         }
 
-        Self { cache, prefetch_tx }
+        Ok(Self { cache, prefetch_tx })
     }
 
     /// Access pre-rendered tile data. No cloning — caller borrows via closure.

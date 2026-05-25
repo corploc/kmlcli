@@ -1,5 +1,5 @@
 use clap::Parser;
-use color_eyre::eyre::{Result, eyre};
+use color_eyre::eyre::{eyre, Result};
 
 mod cli;
 
@@ -22,7 +22,7 @@ fn main() -> Result<()> {
         Some(cli::Command::List { .. }) => kmlcli::commands::list::run(&doc)?,
         Some(cli::Command::Tree { .. }) => kmlcli::commands::tree::run(&doc),
         _ => {
-            kmlcli::tui::app::App::new(doc).run()?;
+            kmlcli::tui::app::App::new(doc)?.run()?;
         }
     }
     Ok(())
