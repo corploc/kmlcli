@@ -1,19 +1,19 @@
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use color_eyre::eyre::Result;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use ratatui::{
+    Frame,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Style},
     text::Span,
     widgets::{Block, Borders, Clear, Paragraph},
-    Frame,
 };
 
 use crate::{
@@ -21,9 +21,9 @@ use crate::{
     projection::Viewport,
     tiles::fetch::TileCache,
     tui::{
-        input::{handle_key, handle_mouse, Action},
+        input::{Action, handle_key, handle_mouse},
         map::MapView,
-        tree::{kind_to_icon, TreeView, TreeViewItem},
+        tree::{TreeView, TreeViewItem, kind_to_icon},
     },
 };
 
