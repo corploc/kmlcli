@@ -35,6 +35,7 @@ pub fn parse_file(path: &Path) -> Result<KmlDocument> {
         name: None,
         features: Vec::new(),
         styles: HashMap::new(),
+        style_maps: HashMap::new(),
     };
 
     convert_kml(&kml_data, &mut doc);
@@ -89,7 +90,22 @@ fn convert_kml(kml: &Kml<f64>, doc: &mut KmlDocument) {
                 doc.styles.insert(id.clone(), our_style);
             }
         }
+        Kml::StyleMap(sm) => {
+            record_style_map(sm, doc);
+        }
         _ => {}
+    }
+}
+
+fn record_style_map(sm: &kml::types::StyleMap, doc: &mut KmlDocument) {
+    let Some(id) = &sm.id else { return };
+    if let Some(target) = sm
+        .pairs
+        .iter()
+        .find(|p| p.key == "normal")
+        .map(|p| p.style_url.trim_start_matches('#').to_string())
+    {
+        doc.style_maps.insert(id.clone(), target);
     }
 }
 
@@ -118,6 +134,9 @@ fn process_document_child(kml: &Kml<f64>, doc: &mut KmlDocument) {
                 };
                 doc.styles.insert(id.clone(), our_style);
             }
+        }
+        Kml::StyleMap(sm) => {
+            record_style_map(sm, doc);
         }
         _ => {}
     }
@@ -150,6 +169,9 @@ fn convert_folder(folder: &KmlFolder<f64>, doc: &mut KmlDocument) -> Feature {
                     };
                     doc.styles.insert(id.clone(), our_style);
                 }
+            }
+            Kml::StyleMap(sm) => {
+                record_style_map(sm, doc);
             }
             _ => {}
         }

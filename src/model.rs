@@ -45,6 +45,9 @@ pub struct KmlDocument {
     pub name: Option<String>,
     pub features: Vec<Feature>,
     pub styles: HashMap<String, Style>,
+    /// Maps StyleMap id → target Style id (the "normal" pair).
+    /// KML StyleMap is an indirection layer Google Maps exports use heavily.
+    pub style_maps: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -90,6 +93,15 @@ impl KmlDocument {
             bbox.max_lat += 0.001;
         }
         Some(bbox)
+    }
+
+    /// Resolve a style id, following one level of StyleMap indirection.
+    pub fn resolve_style(&self, id: &str) -> Option<&Style> {
+        if let Some(s) = self.styles.get(id) {
+            return Some(s);
+        }
+        let target = self.style_maps.get(id)?;
+        self.styles.get(target)
     }
 
     pub fn flatten(&self) -> Vec<(Vec<usize>, &Feature)> {

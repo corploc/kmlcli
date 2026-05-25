@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Document>
+  <name>StyleMap fixture</name>
+  <Style id="redStyle">
+    <LineStyle>
+      <color>ff0000ff</color>
+      <width>2</width>
+    </LineStyle>
+  </Style>
+  <Style id="redHighlight">
+    <LineStyle>
+      <color>ffff00ff</color>
+      <width>4</width>
+    </LineStyle>
+  </Style>
+  <StyleMap id="redMap">
+    <Pair>
+      <key>normal</key>
+      <styleUrl>#redStyle</styleUrl>
+    </Pair>
+    <Pair>
+      <key>highlight</key>
+      <styleUrl>#redHighlight</styleUrl>
+    </Pair>
+  </StyleMap>
+  <Placemark>
+    <name>p1</name>
+    <styleUrl>#redMap</styleUrl>
+    <LineString>
+      <coordinates>0,0 1,1</coordinates>
+    </LineString>
+  </Placemark>
+</Document>
+</kml>

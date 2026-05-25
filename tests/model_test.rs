@@ -37,6 +37,7 @@ fn make_doc() -> KmlDocument {
             },
         ],
         styles: HashMap::new(),
+        style_maps: HashMap::new(),
     }
 }
 
@@ -72,6 +73,7 @@ fn test_bounding_box_single_point() {
             description: None,
         }],
         styles: HashMap::new(),
+        style_maps: HashMap::new(),
     };
     let bbox = doc.bounding_box().unwrap();
     assert!(bbox.max_lon > bbox.min_lon);
@@ -84,6 +86,7 @@ fn test_bounding_box_empty() {
         name: None,
         features: vec![],
         styles: HashMap::new(),
+        style_maps: HashMap::new(),
     };
     assert!(doc.bounding_box().is_none());
 }
