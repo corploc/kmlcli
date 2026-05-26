@@ -599,7 +599,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -838,6 +838,11 @@ name = "hashbrown"
 version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
+dependencies = [
+ "allocator-api2",
+ "equivalent",
+ "foldhash 0.2.0",
+]
 
 [[package]]
 name = "heck"
@@ -1118,15 +1123,6 @@ checksum = "a6cb138bb79a146c1bd460005623e142ef0181e3d0219cb493e02f7d08a35695"
 
 [[package]]
 name = "itertools"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
-dependencies = [
- "either",
-]
-
-[[package]]
-name = "itertools"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b192c782037fadd9cfa75548310488aabdbf3d2da73885b31bd0abd03351285"
@@ -1197,7 +1193,7 @@ dependencies = [
  "ctrlc",
  "flate2",
  "kml",
- "lru",
+ "lru 0.18.0",
  "pretty_assertions",
  "prost",
  "ratatui",
@@ -1285,6 +1281,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f66e8d5d03f609abc3a39e6f08e4164ebf1447a732906d39eb9b99b7919ef39"
 dependencies = [
  "hashbrown 0.16.1",
+]
+
+[[package]]
+name = "lru"
+version = "0.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8a860605968fce16869fd239cf4237a82f3ac470723415db603b0e8b6c8d4fb9"
+dependencies = [
+ "hashbrown 0.17.1",
 ]
 
 [[package]]
@@ -1686,7 +1691,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "27c6023962132f4b30eb4c172c91ce92d933da334c59c23cddee82358ddafb0b"
 dependencies = [
  "anyhow",
- "itertools 0.13.0",
+ "itertools",
  "proc-macro2",
  "quote",
  "syn 2.0.117",
@@ -1845,9 +1850,9 @@ dependencies = [
  "compact_str",
  "hashbrown 0.16.1",
  "indoc",
- "itertools 0.14.0",
+ "itertools",
  "kasuari",
- "lru",
+ "lru 0.16.4",
  "strum",
  "thiserror 2.0.18",
  "unicode-segmentation",
@@ -1897,7 +1902,7 @@ dependencies = [
  "hashbrown 0.16.1",
  "indoc",
  "instability",
- "itertools 0.14.0",
+ "itertools",
  "line-clipping",
  "ratatui-core",
  "strum",
@@ -2029,7 +2034,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2628,7 +2633,7 @@ version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "16b380a1238663e5f8a691f9039c73e1cdae598a30e9855f541d29b08b53e9a5"
 dependencies = [
- "itertools 0.14.0",
+ "itertools",
  "unicode-segmentation",
  "unicode-width",
 ]
